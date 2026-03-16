@@ -70,8 +70,8 @@ server <- function(input, output, session) {
   mod6 <- mod_asignacion_server("asignacion", parametro = mod1$datos, precision = precision_datos, unidad = mod2$datos, diseno = mod4$datos)
 
   entrada_exportable <- reactive({
-    p1 <- mod1$datos(); p2 <- mod2$datos(); d4 <- mod4$datos(); d5 <- mod5$datos(); d6 <- mod6$datos()
-    req(p1, p2, d4, d5, d6)
+    p1 <- mod1$datos(); p2 <- mod2$datos(); d4 <- mod4$datos(); d6 <- mod6$datos()
+    req(p1, p2, d4, d6)
 
     list(
       tipo_param = p1$tipo,
