@@ -9,7 +9,7 @@ mod_presupuesto_ui <- function(id) {
     shiny::wellPanel(
       h3("Paso 5. Tamaño de muestra"),
       p("En este paso no se selecciona m: se calcula y muestra la tabla para todos los valores de m."),
-      h4("Salida de la función (variables originales)"),
+      h4("Tamaños de muestra para diferentes m"),
       DT::DTOutput(ns("tabla_muestreo"))
     )
   )
