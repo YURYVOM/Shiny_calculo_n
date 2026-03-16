@@ -1,0 +1,516 @@
+# app.R ----
+library(shiny)
+library(shinyjs)
+library(DT)
+library(dplyr)
+library(readr)
+library(samplesize4surveys)
+library(mipfp)
+
+`%||%` <- function(a, b) if (!is.null(a) && !all(is.na(a))) a else b
+
+#-----------------------------
+# Helpers
+#-----------------------------
+get_n_from_ss <- function(obj) {
+  x <- unlist(obj)
+  x <- x[is.finite(x)]
+  if (length(x) == 0) stop("No pude extraer n del resultado ss4*().")
+  as.numeric(x[1])
+}
+
+inflate_nr <- function(n, r) {
+  if (is.null(r) || is.na(r) || r <= 0) return(n)
+  if (r >= 1) stop("No respuesta debe estar en (0,1).")
+  n / (1 - r)
+}
+
+# Impacto: diferencia simple (dos grupos independientes), aproximación normal
+n_diff_prop <- function(p1, p2, alpha = 0.05, power = 0.80, two_sided = TRUE, deff = 1) {
+  z_alpha <- qnorm(1 - alpha/ifelse(two_sided, 2, 1))
+  z_beta  <- qnorm(power)
+  
+  pbar <- (p1 + p2) / 2
+  num  <- (z_alpha * sqrt(2 * pbar * (1 - pbar)) + z_beta * sqrt(p1*(1-p1) + p2*(1-p2)))^2
+  den  <- (p1 - p2)^2
+  n    <- num / den
+  n * deff
+}
+
+n_diff_mean <- function(sigma, delta, alpha = 0.05, power = 0.80, two_sided = TRUE, deff = 1) {
+  z_alpha <- qnorm(1 - alpha/ifelse(two_sided, 2, 1))
+  z_beta  <- qnorm(power)
+  
+  n <- 2 * ( (z_alpha + z_beta) * sigma / delta )^2
+  n * deff
+}
+
+# Doble diferencia: aproximación conservadora (multiplica varianza efectiva).
+# Nota: DID real depende de correlación intra-individuo/cluster y diseño longitudinal/panel.
+n_did_prop <- function(p1, p2, alpha = 0.05, power = 0.80, two_sided = TRUE, deff = 1, inflate_factor = 2) {
+  # Conservador: toma n de diff simple y multiplica por factor (por defecto 2).
+  n_diff_prop(p1, p2, alpha, power, two_sided, deff) * inflate_factor
+}
+n_did_mean <- function(sigma, delta, alpha = 0.05, power = 0.80, two_sided = TRUE, deff = 1, inflate_factor = 2) {
+  n_diff_mean(sigma, delta, alpha, power, two_sided, deff) * inflate_factor
+}
+
+# IPFP allocation: margenes DAM y AREA (proporciones o totales)
+ipfp_allocate <- function(n_total, dam, area, prop_dam, prop_area, seed = NULL, tol = 1e-8, maxiter = 2000) {
+  stopifnot(length(dam) > 0, length(area) > 0)
+  D <- length(dam); A <- length(area)
+  
+  if (is.null(seed)) seed <- matrix(1, nrow = D, ncol = A)
+  
+  targ_d <- n_total * prop_dam
+  targ_a <- n_total * prop_area
+  
+  res <- mipfp::Ipfp(seed = seed,
+                     target.list = list(1, 2),
+                     target.data = list(targ_d, targ_a),
+                     tol = tol, iter = maxiter)
+  
+  mat <- res$x.hat
+  dimnames(mat) <- list(dam, area)
+  mat
+}
+
+# Redondeo preservando suma total (no preserva margenes exactos; si requieres margenes exactos, se implementa ajuste iterativo)
+round_preserve_total <- function(x, total) {
+  xf <- floor(x)
+  r  <- total - sum(xf)
+  if (r > 0) {
+    ord <- order(x - xf, decreasing = TRUE)
+    xf[ord[seq_len(r)]] <- xf[ord[seq_len(r)]] + 1
+  }
+  xf
+}
+
+#-----------------------------
+# UI
+#-----------------------------
+ui <- fluidPage(
+  useShinyjs(),
+  titlePanel("Asistente (Avanzado) – Tamaño de muestra + Dominios + Asignación DAM×AREA"),
+  tags$hr(),
+  
+  fluidRow(
+    column(
+      8,
+      tabsetPanel(
+        id = "steps",
+        type = "tabs",
+        
+        # BLOQUE 1
+        tabPanel("1. Objetivo inferencial",
+                 h4("🧭 BLOQUE 1 — Objetivo Inferencial"),
+                 radioButtons("obj", "¿Qué desea estimar?",
+                              choices = c("Proporción" = "prop",
+                                          "Media" = "mean",
+                                          "Total" = "total",
+                                          "Cambio / Impacto" = "impact"),
+                              inline = TRUE),
+                 
+                 conditionalPanel("input.obj == 'prop'",
+                                  tags$hr(),
+                                  radioButtons("has_p", "¿Tiene proporción esperada (p)?",
+                                               choices = c("Sí" = "yes", "No (usar 0.5)" = "no"),
+                                               inline = TRUE),
+                                  conditionalPanel("input.has_p == 'yes'",
+                                                   numericInput("p", "p (0–1)", value = 0.5, min = 0.001, max = 0.999, step = 0.001)
+                                  )
+                 ),
+                 
+                 conditionalPanel("input.obj == 'mean' || input.obj == 'total'",
+                                  tags$hr(),
+                                  numericInput("mu", "Media esperada μ", value = 100, step = 1),
+                                  radioButtons("has_sigma", "¿Tiene estimación de varianza / desviación (σ)?",
+                                               choices = c("Sí" = "yes", "No (recomendar piloto)" = "no"),
+                                               inline = TRUE),
+                                  conditionalPanel("input.has_sigma == 'yes'",
+                                                   numericInput("sigma", "σ (desv. estándar)", value = 30, min = 0.0001, step = 1)
+                                  ),
+                                  conditionalPanel("input.has_sigma == 'no'",
+                                                   tags$div(class="text-warning",
+                                                            "Sin σ no es posible calcular n para media/total. Recomendación: piloto o histórico.")
+                                  )
+                 ),
+                 
+                 conditionalPanel("input.obj == 'impact'",
+                                  tags$hr(),
+                                  radioButtons("impact_type", "¿Es diferencia simple o doble diferencia?",
+                                               choices = c("Diferencia simple" = "diff",
+                                                           "Doble diferencia (DID)" = "did"),
+                                               inline = TRUE),
+                                  radioButtons("impact_outcome", "Tipo de resultado",
+                                               choices = c("Proporción" = "prop", "Media" = "mean"),
+                                               inline = TRUE),
+                                  tags$hr(),
+                                  conditionalPanel("input.impact_outcome == 'prop'",
+                                                   numericInput("p1", "p1 (baseline/control)", value = 0.20, min = 0.001, max = 0.999, step = 0.001),
+                                                   numericInput("p2", "p2 (treat/esperada)", value = 0.25, min = 0.001, max = 0.999, step = 0.001)
+                                  ),
+                                  conditionalPanel("input.impact_outcome == 'mean'",
+                                                   numericInput("sigma_i", "σ (desv. estándar)", value = 30, min = 0.0001, step = 1),
+                                                   numericInput("delta", "Δ (efecto mínimo detectable)", value = 5, min = 0.0001, step = 0.1)
+                                  ),
+                                  numericInput("alpha", "α (significancia)", value = 0.05, min = 0.0001, max = 0.2, step = 0.01),
+                                  numericInput("power", "Poder (1-β)", value = 0.80, min = 0.50, max = 0.99, step = 0.01),
+                                  checkboxInput("two_sided", "Prueba bilateral", value = TRUE),
+                                  numericInput("did_inflate", "Factor conservador para DID", value = 2, min = 1, step = 0.5),
+                                  tags$div(class="text-muted",
+                                           "Nota: DID depende de correlaciones y estructura panel. Aquí se usa aproximación conservadora multiplicativa.")
+                 )
+        ),
+        
+        # BLOQUE 2
+        tabPanel("2. Precisión",
+                 h4("🧭 BLOQUE 2 — Nivel de Precisión"),
+                 radioButtons("prec", "¿Cómo desea controlar la precisión?",
+                              choices = c("Error absoluto (e)" = "e",
+                                          "Coeficiente de variación (CV)" = "cv",
+                                          "Poder estadístico (solo impacto)" = "power"),
+                              inline = FALSE),
+                 conditionalPanel("input.prec == 'cv'",
+                                  tags$div(class="text-warning",
+                                           "Advertencia: el CV es lo recomendado cuando se requiere control por dominios.")
+                 ),
+                 conditionalPanel("input.prec == 'e'",
+                                  numericInput("e", "Error absoluto e", value = 0.03, min = 0.0001, step = 0.001)
+                 ),
+                 conditionalPanel("input.prec == 'cv'",
+                                  numericInput("cv", "CV objetivo", value = 0.10, min = 0.0001, step = 0.01)
+                 ),
+                 conditionalPanel("input.prec == 'power' && input.obj != 'impact'",
+                                  tags$div(class="text-danger",
+                                           "Poder estadístico solo aplica si el objetivo es Cambio/Impacto.")
+                 )
+        ),
+        
+        # BLOQUE 3
+        tabPanel("3. Diseño muestral",
+                 h4("🧭 BLOQUE 3 — Diseño Muestral"),
+                 radioButtons("hh", "¿Es una encuesta de hogares multietápica?",
+                              choices = c("Sí" = "yes", "No (MAS)" = "no"),
+                              inline = TRUE),
+                 conditionalPanel("input.hh == 'yes'",
+                                  numericInput("deff", "DEFF esperado", value = 2.0, min = 0.5, step = 0.1),
+                                  numericInput("hh_size", "Tamaño promedio del hogar", value = 3.5, min = 1, step = 0.1),
+                                  numericInput("elig", "Tasa de elegibilidad", value = 0.90, min = 0.01, max = 1, step = 0.01)
+                 ),
+                 conditionalPanel("input.hh == 'no'",
+                                  numericInput("deff", "DEFF (MAS = 1)", value = 1.0, min = 0.5, step = 0.1)
+                 ),
+                 numericInput("nr", "No respuesta esperada", value = 0.15, min = 0, max = 0.9, step = 0.01),
+                 numericInput("N_global", "Población finita N (opcional)", value = NA, min = 1),
+                 tags$small("Si N_global es NA, se omite corrección por población finita.")
+        ),
+        
+        # BLOQUE 4
+        tabPanel("4. Dominios y publicación",
+                 h4("🧭 BLOQUE 4 — Dominio y Publicación"),
+                 radioButtons("domain_level", "¿Dónde necesita garantizar precisión?",
+                              choices = c("Nacional" = "NAC",
+                                          "Por DAM" = "DAM",
+                                          "Por DAM y Área (DAM×AREA)" = "DAM_AREA",
+                                          "Por Área" = "AREA"),
+                              inline = TRUE),
+                 tags$hr(),
+                 tags$div(class="text-muted",
+                          "Nota: si controlas precisión por DAM o DAM×AREA, lo correcto es calcular n a ese nivel o adoptar una regla conservadora.")
+        ),
+        
+        # BLOQUE 5
+        conditionalPanel(
+          condition = "input.domain_level == 'DAM' || input.domain_level == 'DAM_AREA'",
+          h4("🧭 BLOQUE 5 — Asignación DAM×AREA"),
+          
+          conditionalPanel(
+            condition = "input.domain_level == 'DAM'",
+            checkboxInput("usar_asignacion", 
+                          "¿Desea distribuir el tamaño por DAM×AREA?", 
+                          value = FALSE)
+          ),
+          
+          conditionalPanel(
+            condition = "input.domain_level == 'DAM_AREA' || input.usar_asignacion == true",
+            
+            radioButtons("alloc",
+                         "Método de asignación",
+                         choices = c("Proporcional a población" = "propN",
+                                     "IPFP con márgenes DAM y Área" = "ipfp",
+                                     "Igualitaria con mínimo por celda" = "equal")
+            )
+          )
+        )
+        
+      )
+    ),
+    column(
+      4,
+      h4("Navegación"),
+      actionButton("btn_next", "Siguiente"),
+      actionButton("btn_back", "Atrás"),
+      tags$hr(),
+      tags$div(class="text-muted",
+               "Tip: en modo avanzado, si faltan insumos (σ, archivos, etc.) el sistema bloquea el cálculo con un mensaje explícito.")
+    )
+  )
+)
+
+#-----------------------------
+# Server
+#-----------------------------
+server <- function(input, output, session) {
+  
+  steps <- c("1. Objetivo inferencial", "2. Precisión", "3. Diseño muestral",
+             "4. Dominios y publicación", 
+             "5. Asignación DAM×AREA")
+  
+  observeEvent(input$btn_next, {
+    cur <- input$steps
+    i <- match(cur, steps)
+    if (i < length(steps)) updateTabsetPanel(session, "steps", selected = steps[i + 1])
+  })
+  
+  observeEvent(input$btn_back, {
+    cur <- input$steps
+    i <- match(cur, steps)
+    if (i > 1) updateTabsetPanel(session, "steps", selected = steps[i - 1])
+  })
+  
+  #-----------------------------
+  # Cálculo n_total
+  #-----------------------------
+  n_total_calc <- reactive({
+    # Validaciones
+    if (input.obj != "impact" && input.prec == "power") {
+      stop("Poder estadístico solo aplica si el objetivo es Cambio/Impacto.")
+    }
+    
+    deff <- input$deff
+    Ngl  <- input$N_global
+    if (is.na(Ngl)) Ngl <- NULL
+    
+    # No respuesta
+    nr <- input$nr
+    
+    if (input$obj %in% c("mean", "total") && input$has_sigma == "no") {
+      stop("Para media/total necesitas σ. Suministra σ o usa un piloto/histórico.")
+    }
+    
+    if (input$obj == "prop") {
+      p <- if (input$has_p == "yes") input$p else 0.5
+      if (input$prec == "e") {
+        n0 <- get_n_from_ss(ss4p(p = p, e = input$e, conf = 0.95, deff = deff, N = Ngl))
+      } else if (input$prec == "cv") {
+        n0 <- get_n_from_ss(ss4p(p = p, cv = input$cv, conf = 0.95, deff = deff, N = Ngl))
+      } else {
+        stop("Para objetivo Proporción, la precisión debe ser e o CV.")
+      }
+      return(ceiling(inflate_nr(n0, nr)))
+    }
+    
+    if (input$obj == "mean") {
+      if (input$prec == "e") {
+        n0 <- get_n_from_ss(ss4m(mu = input$mu, sigma = input$sigma, e = input$e, conf = 0.95, deff = deff, N = Ngl))
+      } else if (input$prec == "cv") {
+        n0 <- get_n_from_ss(ss4m(mu = input$mu, sigma = input$sigma, cv = input$cv, conf = 0.95, deff = deff, N = Ngl))
+      } else {
+        stop("Para objetivo Media, la precisión debe ser e o CV.")
+      }
+      return(ceiling(inflate_nr(n0, nr)))
+    }
+    
+    if (input$obj == "total") {
+      if (input$prec == "e") {
+        n0 <- get_n_from_ss(ss4t(mu = input$mu, sigma = input$sigma, e = input$e, conf = 0.95, deff = deff, N = Ngl))
+      } else if (input$prec == "cv") {
+        n0 <- get_n_from_ss(ss4t(mu = input$mu, sigma = input$sigma, cv = input$cv, conf = 0.95, deff = deff, N = Ngl))
+      } else {
+        stop("Para objetivo Total, la precisión debe ser e o CV.")
+      }
+      return(ceiling(inflate_nr(n0, nr)))
+    }
+    
+    # Impacto
+    if (input$obj == "impact") {
+      if (input$prec != "power") {
+        stop("Para Impacto, selecciona 'Poder estadístico' en BLOQUE 2.")
+      }
+      alpha <- input$alpha
+      power <- input$power
+      two_sided <- input$two_sided
+      if (input$impact_outcome == "prop") {
+        if (input$impact_type == "diff") {
+          n0 <- n_diff_prop(input$p1, input$p2, alpha, power, two_sided, deff)
+        } else {
+          n0 <- n_did_prop(input$p1, input$p2, alpha, power, two_sided, deff, input$did_inflate)
+        }
+      } else {
+        if (input$impact_type == "diff") {
+          n0 <- n_diff_mean(input$sigma_i, input$delta, alpha, power, two_sided, deff)
+        } else {
+          n0 <- n_did_mean(input$sigma_i, input$delta, alpha, power, two_sided, deff, input$did_inflate)
+        }
+      }
+      # n0 es por grupo en diff; aquí reportamos total (2 grupos). Para DID se mantiene conservador.
+      n_total <- 2 * ceiling(n0)
+      return(ceiling(inflate_nr(n_total, input$nr)))
+    }
+    
+    stop("Objetivo no soportado.")
+  })
+  
+  #-----------------------------
+  # Asignación DAM×AREA
+  #-----------------------------
+  allocation <- eventReactive(input$run, {
+    
+    n_total <- n_total_calc()
+    min_cell <- input$min_cell
+    
+    if (input$alloc == "ipfp") {
+      req(input$dam_file, input$area_file)
+      
+      dam_df  <- read_csv(input$dam_file$datapath, show_col_types = FALSE) %>%
+        mutate(DAM = as.character(DAM))
+      area_df <- read_csv(input$area_file$datapath, show_col_types = FALSE) %>%
+        mutate(AREA = as.character(AREA))
+      
+      if (!all(c("DAM","prop") %in% names(dam_df)))  stop("Archivo DAM debe tener columnas: DAM, prop")
+      if (!all(c("AREA","prop") %in% names(area_df))) stop("Archivo AREA debe tener columnas: AREA, prop")
+      
+      dam <- dam_df$DAM
+      area <- area_df$AREA
+      
+      prop_d <- dam_df$prop / sum(dam_df$prop)
+      prop_a <- area_df$prop / sum(area_df$prop)
+      
+      mat <- ipfp_allocate(n_total, dam, area, prop_d, prop_a)
+      
+      # redondeo preservando total
+      v <- as.vector(mat)
+      v_round <- round_preserve_total(v, n_total)
+      mat_r <- matrix(v_round, nrow = length(dam), ncol = length(area),
+                      dimnames = list(dam, area))
+      
+      # mínimo por celda (si se impone, puede violar total; aquí lo ajustamos reescalando de forma simple)
+      if (min_cell > 0) {
+        mat_r <- pmax(mat_r, min_cell)
+        # ajustar total: si se pasó, recortar de celdas más grandes
+        overflow <- sum(mat_r) - n_total
+        if (overflow > 0) {
+          idx <- order(as.vector(mat_r), decreasing = TRUE)
+          vec <- as.vector(mat_r)
+          k <- 1
+          while (overflow > 0 && k <= length(vec)) {
+            j <- idx[k]
+            if (vec[j] > min_cell) {
+              dec <- min(vec[j] - min_cell, overflow)
+              vec[j] <- vec[j] - dec
+              overflow <- overflow - dec
+            }
+            k <- k + 1
+          }
+          mat_r <- matrix(vec, nrow = nrow(mat_r), ncol = ncol(mat_r), dimnames = dimnames(mat_r))
+        }
+      }
+      
+      out <- as.data.frame(as.table(mat_r))
+      names(out) <- c("DAM","AREA","n")
+      return(out)
+    }
+    
+    if (input$alloc %in% c("propN","equal","neyman")) {
+      req(input$cells_file)
+      cells <- read_csv(input$cells_file$datapath, show_col_types = FALSE) %>%
+        mutate(DAM = as.character(DAM), AREA = as.character(AREA))
+      
+      if (!all(c("DAM","AREA") %in% names(cells))) stop("Tabla celdas debe tener columnas: DAM, AREA (y opcional N).")
+      
+      if (input$alloc == "equal") {
+        K <- nrow(cells)
+        n0 <- floor(n_total / K)
+        r  <- n_total - n0*K
+        cells$n <- n0
+        if (r > 0) cells$n[seq_len(r)] <- cells$n[seq_len(r)] + 1
+        cells$n <- pmax(cells$n, min_cell)
+        # ajustar total si min_cell alteró suma
+        diff <- sum(cells$n) - n_total
+        if (diff != 0) {
+          idx <- order(cells$n, decreasing = (diff > 0))
+          i <- 1
+          while (diff != 0 && i <= nrow(cells)) {
+            if (diff > 0 && cells$n[idx[i]] > min_cell) { cells$n[idx[i]] <- cells$n[idx[i]] - 1; diff <- diff - 1 }
+            if (diff < 0) { cells$n[idx[i]] <- cells$n[idx[i]] + 1; diff <- diff + 1 }
+            i <- i + 1
+          }
+        }
+        return(cells %>% select(DAM, AREA, n))
+      }
+      
+      if (input$alloc == "propN") {
+        if (!("N" %in% names(cells))) stop("Asignación proporcional requiere columna N por celda.")
+        if (any(is.na(cells$N)) || any(cells$N <= 0)) stop("N debe ser >0 en todas las celdas.")
+        w <- cells$N / sum(cells$N)
+        n_raw <- n_total * w
+        n_alloc <- floor(n_raw)
+        r <- n_total - sum(n_alloc)
+        if (r > 0) {
+          ord <- order(n_raw - n_alloc, decreasing = TRUE)
+          n_alloc[ord[seq_len(r)]] <- n_alloc[ord[seq_len(r)]] + 1
+        }
+        cells$n <- pmax(n_alloc, min_cell)
+        # ajustar total si min_cell alteró suma
+        diff <- sum(cells$n) - n_total
+        if (diff > 0) {
+          ord <- order(cells$n, decreasing = TRUE)
+          i <- 1
+          while (diff > 0 && i <= length(ord)) {
+            j <- ord[i]
+            if (cells$n[j] > min_cell) { cells$n[j] <- cells$n[j] - 1; diff <- diff - 1 }
+            i <- i + 1
+          }
+        }
+        return(cells %>% select(DAM, AREA, n))
+      }
+      
+      if (input$alloc == "neyman") {
+        stop("Neyman (óptimo) requiere varianzas por estrato/celda y, usualmente, costos. Stub listo para extender.")
+      }
+    }
+    
+    stop("Método de asignación no soportado.")
+  })
+  
+  output$summary <- renderPrint({
+    req(input$run)
+    n_total <- n_total_calc()
+    cat("n_total (ajustado por no respuesta):", n_total, "\n")
+    cat("Asignación:", input$alloc, "\n")
+    if (input$domain_level != "NAC") cat("Nivel de publicación/precisión declarado:", input$domain_level, "\n")
+    if (input$hh == "yes") {
+      cat("Encuesta de hogares multietápica: Sí\n")
+      cat("DEFF:", input$deff, " | Tamaño hogar:", input$hh_size, " | Elegibilidad:", input$elig, "\n")
+    } else {
+      cat("MAS / diseño simple\n")
+      cat("DEFF:", input$deff, "\n")
+    }
+  })
+  
+  output$tbl_out <- renderDT({
+    req(allocation())
+    datatable(allocation(), options = list(pageLength = 15))
+  })
+  
+  output$download <- downloadHandler(
+    filename = function() paste0("asignacion_DAM_AREA_", Sys.Date(), ".csv"),
+    content = function(file) {
+      req(allocation())
+      write_csv(allocation(), file)
+    }
+  )
+}
+
+shinyApp(ui, server)

@@ -1,0 +1,47 @@
+mod_asignacion_ui <- function(id) {
+  ns <- NS(id)
+
+  tagList(
+    h4("🧭 BLOQUE 4 — Dominio y Asignación"),
+
+    radioButtons(
+      ns("nivel"),
+      "¿Dónde garantiza precisión?",
+      choices = c("Nacional" = "NAC",
+                  "DAM" = "DAM",
+                  "DAM×AREA" = "DAM_AREA")
+    ),
+
+    conditionalPanel(
+      condition = sprintf("input['%s'] == 'DAM'", ns("nivel")),
+      checkboxInput(ns("usar_asig"),
+                    "¿Desea distribuir por DAM×AREA?",
+                    FALSE)
+    ),
+
+    conditionalPanel(
+      condition = sprintf("input['%s'] == 'DAM_AREA' || input['%s'] == true",
+                          ns("nivel"), ns("usar_asig")),
+      radioButtons(
+        ns("metodo"),
+        "Método de asignación",
+        choices = c("Proporcional" = "prop",
+                    "IPFP" = "ipfp",
+                    "Igualitaria" = "equal")
+      )
+    )
+  )
+}
+
+mod_asignacion_server <- function(id) {
+  moduleServer(id, function(input, output, session) {
+
+    reactive({
+      list(
+        nivel  = input$nivel,
+        usar   = input$usar_asig,
+        metodo = input$metodo
+      )
+    })
+  })
+}

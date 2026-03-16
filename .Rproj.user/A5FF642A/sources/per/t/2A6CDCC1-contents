@@ -1,0 +1,28 @@
+mod_diseno_ui <- function(id) {
+  ns <- NS(id)
+
+  tagList(
+    h4("🧭 BLOQUE 3 — Diseño Muestral"),
+
+    radioButtons(
+      ns("hh"),
+      "¿Es encuesta de hogares multietápica?",
+      choices = c("Sí" = "yes", "No (MAS)" = "no")
+    ),
+
+    numericInput(ns("deff"), "DEFF", 2),
+    numericInput(ns("nr"), "No respuesta", 0.15)
+  )
+}
+
+mod_diseno_server <- function(id) {
+  moduleServer(id, function(input, output, session) {
+
+    reactive({
+      list(
+        deff = input$deff,
+        nr   = input$nr
+      )
+    })
+  })
+}

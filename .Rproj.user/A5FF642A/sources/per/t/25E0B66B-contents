@@ -1,0 +1,170 @@
+mod_objetivo_ui <- function(id) {
+  ns <- NS(id)
+
+  tagList(
+    h4("🧭 Objetivo y Dominios"),
+
+    radioButtons(
+      ns("obj"),
+      "¿Qué desea estimar?",
+      choices = c("Proporción" = "prop",
+                  "Media" = "mean"),
+      selected = character(0)
+    ),
+
+    radioButtons(
+      ns("nivel"),
+      "Nivel de inferencia",
+      choices = c("Nacional" = "NAC",
+                  "Por dominios" = "DOM"),
+      selected = character(0)
+    ),
+
+    conditionalPanel(
+      condition = sprintf("input['%s'] == 'DOM'", ns("nivel")),
+      numericInput(
+        ns("n_dom"),
+        "Número de dominios",
+        value = NULL,
+        min = 1
+      )
+    ),
+
+    hr(),
+
+    uiOutput(ns("tabla_dom"))
+  )
+}
+
+mod_objetivo_server <- function(id) {
+  moduleServer(id, function(input, output, session) {
+
+    ns <- session$ns
+
+    # ---- Generar tabla editable ----
+    tabla_dom <- reactiveVal(NULL)
+
+    observeEvent({
+      input$n_dom
+      input$obj
+      input$nivel
+    }, {
+
+      if (is.null(input$nivel) || input$nivel != "DOM") {
+        tabla_dom(NULL)
+        return()
+      }
+
+      if (is.null(input$n_dom) || is.null(input$obj)) return()
+
+      D <- input$n_dom
+
+      if (input$obj == "prop") {
+
+        df <- data.frame(
+          Dominio = paste0("D", seq_len(D)),
+          p = NA_real_
+        )
+
+      } else {
+
+        df <- data.frame(
+          Dominio = paste0("D", seq_len(D)),
+          mu = NA_real_,
+          sigma = NA_real_
+        )
+      }
+
+      tabla_dom(df)
+    })
+
+    # ---- Mostrar tabla ----
+    output$tabla_dom <- renderUI({
+
+      if (input$nivel == "NAC") {
+
+        if (input$obj == "prop") {
+          return(
+            numericInput(ns("p_nac"),
+                         "Proporción esperada (p)",
+                         value = NULL,
+                         min = 0, max = 1)
+          )
+        }
+
+        if (input$obj == "mean") {
+          return(
+            tagList(
+              numericInput(ns("mu_nac"),
+                           "Media esperada (μ)",
+                           value = NULL),
+              numericInput(ns("sigma_nac"),
+                           "Desv. estándar (σ)",
+                           value = NULL)
+            )
+          )
+        }
+      }
+
+      if (input$nivel == "DOM" && !is.null(tabla_dom())) {
+
+        DT::DTOutput(ns("tabla_edit"))
+      }
+    })
+
+    # ---- Render tabla editable ----
+    output$tabla_edit <- DT::renderDT({
+      req(tabla_dom())
+      DT::datatable(tabla_dom(),
+                    editable = TRUE,
+                    rownames = FALSE,
+                    options = list(dom = 't'))
+    })
+
+    # ---- Capturar edición ----
+    observeEvent(input$tabla_edit_cell_edit, {
+
+      info <- input$tabla_edit_cell_edit
+      df <- tabla_dom()
+
+      df[info$row, info$col] <- as.numeric(info$value)
+
+      tabla_dom(df)
+    })
+
+    # ---- Salida estructurada ----
+    reactive({
+
+      if (is.null(input$obj) || is.null(input$nivel))
+        return(NULL)
+
+      if (input$nivel == "NAC") {
+
+        if (input$obj == "prop") {
+          return(list(
+            nivel = "NAC",
+            obj   = "prop",
+            p     = input$p_nac
+          ))
+        }
+
+        if (input$obj == "mean") {
+          return(list(
+            nivel = "NAC",
+            obj   = "mean",
+            mu    = input$mu_nac,
+            sigma = input$sigma_nac
+          ))
+        }
+
+      } else {
+
+        return(list(
+          nivel = "DOM",
+          obj   = input$obj,
+          tabla = tabla_dom()
+        ))
+      }
+    })
+  })
+}

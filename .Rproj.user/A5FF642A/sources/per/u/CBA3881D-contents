@@ -1,0 +1,82 @@
+library(shiny)
+library(shinydashboard)
+library(samplesize4surveys)
+
+# --- UI PRINCIPAL ---
+ui <- dashboardPage(
+  dashboardHeader(title = "Calculador ss4surveys"),
+  dashboardSidebar(
+    sidebarMenu(
+      menuItem("Configuración", tabName = "config", icon = icon("cog"))
+    )
+  ),
+  dashboardBody(
+    fluidRow(
+      box(title = "Navegación por Bloques", width = 12, status = "primary",
+          uiOutput("current_step_ui"),
+          hr(),
+          actionButton("prev_btn", "Anterior", icon = icon("arrow-left")),
+          actionButton("next_btn", "Siguiente", icon = icon("arrow-right"))
+      )
+    )
+  )
+)
+
+# --- LÓGICA DEL SERVIDOR ---
+server <- function(input, output, session) {
+  
+  # Estado reactivo para el flujo
+  rv <- reactiveValues(step = 1, objetivo = NULL)
+  
+  # Renderizado dinámico de Bloques
+  output$current_step_ui <- renderUI({
+    switch(rv$step,
+           # --- BLOQUE 1: Objetivo ---
+           "1" = tagList(
+             h3("🧭 BLOQUE 1 — Objetivo Inferencial"),
+             selectInput("obj", "¿Qué desea estimar?", 
+                         choices = c("Proporción" = "p", "Media" = "m", "Total" = "t", "Impacto" = "i")),
+             uiOutput("sub_obj_ui")
+           ),
+           # --- BLOQUE 2: Precisión ---
+           "2" = tagList(
+             h3("🧭 BLOQUE 2 — Nivel de Precisión"),
+             radioButtons("prec", "¿Cómo desea controlar la precisión?",
+                          choices = c("Error absoluto", "Coeficiente de variación (CV)", "Poder estadístico")),
+             conditionalPanel(
+               condition = "input.prec == 'Coeficiente de variación (CV)'",
+               helpText("⚠️ Recomendado para dominios específicos.")
+             )
+           ),
+           # --- BLOQUE 3: Diseño ---
+           "3" = tagList(
+             h3("🧭 BLOQUE 3 — Diseño Muestral"),
+             radioButtons("hhs", "¿Es una encuesta de hogares multietápica?", choices = c("Sí", "No (MAS)")),
+             conditionalPanel(
+               condition = "input.hhs == 'Sí'",
+               numericInput("deff", "DEFF esperado:", 2, min = 1),
+               numericInput("hh_size", "Tamaño promedio hogar:", 3.5),
+               numericInput("elig", "Tasa de elegibilidad (0-1):", 0.9)
+             )
+           )
+    )
+  })
+  
+  # Inputs dinámicos del Bloque 1
+  output$sub_obj_ui <- renderUI({
+    req(input$obj)
+    if(input$obj == "p") {
+      numericInput("p_val", "¿Tiene proporción esperada? (Sino, usa 0.5)", 0.5, 0, 1)
+    } else if(input$obj == "m") {
+      numericInput("sigma", "Varianza (σ):", 1)
+    } else if(input$obj == "i") {
+      radioButtons("impact_type", "Tipo de impacto:", c("Diferencia simple", "Doble diferencia"))
+    }
+  })
+  
+  # Control de navegación
+  observeEvent(input$next_btn, { if(rv$step < 5) rv$step <- rv$step + 1 })
+  observeEvent(input$prev_btn, { if(rv$step > 1) rv$step <- rv$step - 1 })
+}
+
+shinyApp(ui, server)

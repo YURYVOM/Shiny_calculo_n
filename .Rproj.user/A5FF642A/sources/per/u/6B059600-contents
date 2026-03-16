@@ -1,0 +1,241 @@
+library(shiny)
+library(samplesize4surveys)
+
+source("R/mod_objetivo.R")
+source("R/mod_precision.R")
+source("R/mod_diseno.R")
+source("R/mod_asignacion.R")
+
+
+ui <- fluidPage(
+  titlePanel("Asistente Avanzado – Tamaño de Muestra"),
+  
+  uiOutput("ui_objetivo"),
+  # uiOutput("ui_precision"),
+  # uiOutput("ui_diseno"),
+  # uiOutput("ui_asignacion"),
+  
+  hr(),
+  actionButton("calc", "Calcular"),
+  verbatimTextOutput("resultado")
+)
+
+server <- function(input, output, session) {
+  
+  # ==============================
+  # BLOQUE 1
+  # ==============================
+  output$ui_objetivo <- renderUI({
+    mod_objetivo_ui("obj")
+  })
+  
+  obj <- mod_objetivo_server("obj")
+  
+  
+  # ==============================
+  # BLOQUE 2
+  # ==============================
+  output$ui_precision <- renderUI({
+    o <- obj()
+    if (is.null(o) || is.null(o$obj))
+      return(NULL)
+    
+    mod_precision_ui("prec")
+  })
+  
+  prec <- mod_precision_server("prec")
+  
+  
+  # ==============================
+  # BLOQUE 3
+  # ==============================
+  output$ui_diseno <- renderUI({
+    p <- prec()
+    if (is.null(p) || is.null(p$tipo))
+      return(NULL)
+    
+    mod_diseno_ui("dis")
+  })
+  
+  dis <- mod_diseno_server("dis")
+  
+  
+  # ==============================
+  # BOTÓN CALCULAR SOLO SI TODO EXISTE
+  # ==============================
+  output$btn_calc <- renderUI({
+    o <- obj()
+    p <- prec()
+    d <- dis()
+    
+    if (is.null(o) || is.null(p) || is.null(d))
+      return(NULL)
+    
+    actionButton("calc", "Calcular tamaño de muestra", class = "btn-primary")
+  })
+  
+  
+  # ==============================
+  # CÁLCULO PRINCIPAL
+  # ==============================
+  resultado <- eventReactive(input$calc, {
+    
+    obj_data  <- obj()
+    prec_data <- prec()
+    dis_data  <- dis()
+    
+    if (is.null(obj_data) || is.null(prec_data) || is.null(dis_data))
+      return(NULL)
+    
+    # ==========================
+    # CASO NACIONAL
+    # ==========================
+    if (obj_data$nivel == "NAC") {
+      
+      if (obj_data$obj == "prop") {
+        
+        if (is.null(obj_data$p))
+          stop("Debe ingresar p.")
+        
+        if (prec_data$tipo == "e") {
+          n <- ss4p(
+            p = obj_data$p,
+            e = prec_data$valor,
+            deff = dis_data$deff
+          )
+        } else {
+          n <- ss4p(
+            p = obj_data$p,
+            cv = prec_data$valor,
+            deff = dis_data$deff
+          )
+        }
+      }
+      
+      if (obj_data$obj == "mean") {
+        
+        if (is.null(obj_data$mu) || is.null(obj_data$sigma))
+          stop("Debe ingresar μ y σ.")
+        
+        if (prec_data$tipo == "e") {
+          n <- ss4m(
+            mu = obj_data$mu,
+            sigma = obj_data$sigma,
+            e = prec_data$valor,
+            deff = dis_data$deff
+          )
+        } else {
+          n <- ss4m(
+            mu = obj_data$mu,
+            sigma = obj_data$sigma,
+            cv = prec_data$valor,
+            deff = dis_data$deff
+          )
+        }
+      }
+      
+      n_final <- ceiling(unlist(n)[1] / (1 - dis_data$nr))
+      
+      return(list(
+        nivel = "Nacional",
+        n_total = n_final
+      ))
+    }
+    
+    
+    # ==========================
+    # CASO POR DOMINIO
+    # ==========================
+    if (obj_data$nivel == "DOM") {
+      
+      tabla <- obj_data$tabla
+      
+      if (is.null(tabla))
+        stop("Debe completar la tabla de dominios.")
+      
+      if (obj_data$obj == "prop") {
+        
+        if (any(is.na(tabla$p)))
+          stop("Existen p no definidos.")
+        
+        n_dom <- sapply(tabla$p, function(p_d) {
+          
+          if (prec_data$tipo == "e") {
+            ss4p(
+              p = p_d,
+              e = prec_data$valor,
+              deff = dis_data$deff
+            )
+          } else {
+            ss4p(
+              p = p_d,
+              cv = prec_data$valor,
+              deff = dis_data$deff
+            )
+          }
+        })
+      }
+      
+      if (obj_data$obj == "mean") {
+        
+        if (any(is.na(tabla$mu)) || any(is.na(tabla$sigma)))
+          stop("Existen μ o σ no definidos.")
+        
+        n_dom <- sapply(seq_len(nrow(tabla)), function(i) {
+          
+          if (prec_data$tipo == "e") {
+            ss4m(
+              mu = tabla$mu[i],
+              sigma = tabla$sigma[i],
+              e = prec_data$valor,
+              deff = dis_data$deff
+            )
+          } else {
+            ss4m(
+              mu = tabla$mu[i],
+              sigma = tabla$sigma[i],
+              cv = prec_data$valor,
+              deff = dis_data$deff
+            )
+          }
+        })
+      }
+      
+      n_dom <- ceiling(unlist(n_dom) / (1 - dis_data$nr))
+      
+      tabla$n_dom <- n_dom
+      
+      n_total <- sum(n_dom)
+      
+      return(list(
+        nivel = "Dominio",
+        tabla = tabla,
+        n_total = n_total
+      ))
+    }
+    
+  })
+  
+  
+  # ==============================
+  # SALIDA
+  # ==============================
+  output$resultado <- renderPrint({
+    
+    res <- resultado()
+    if (is.null(res)) return(NULL)
+    
+    if (res$nivel == "Nacional") {
+      cat("Nivel:", res$nivel, "\n")
+      cat("Tamaño total requerido:", res$n_total)
+    }
+    
+    if (res$nivel == "Dominio") {
+      cat("Nivel:", res$nivel, "\n\n")
+      print(res$tabla)
+      cat("\nTamaño total requerido:", res$n_total)
+    }
+  })
+}
+
+shinyApp(ui, server)

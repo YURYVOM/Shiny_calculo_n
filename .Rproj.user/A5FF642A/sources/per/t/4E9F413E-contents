@@ -1,0 +1,74 @@
+mod_precision_ui <- function(id) {
+  ns <- NS(id)
+
+  tagList(
+    h4("Nivel de Precisión"),
+
+    radioButtons(
+      ns("prec"),
+      "¿Cómo desea controlar la precisión?",
+      choices = c(
+        "Error absoluto (e)" = "e",
+        "Error relativo (e/θ)" = "er",
+        "Coeficiente de variación (CV)" = "cv",
+        "Amplitud total del intervalo (A = 2e)" = "amp"
+      ),
+      selected = character(0)
+    ),
+
+    # Error absoluto
+    conditionalPanel(
+      condition = sprintf("input['%s'] == 'e'", ns("prec")),
+      numericInput(ns("e"), "Error absoluto (e)", value = NULL, min = 0)
+    ),
+
+    # Error relativo
+    conditionalPanel(
+      condition = sprintf("input['%s'] == 'er'", ns("prec")),
+      numericInput(ns("er"), "Error relativo (e/θ)", value = NULL, min = 0)
+    ),
+
+    # CV
+    conditionalPanel(
+      condition = sprintf("input['%s'] == 'cv'", ns("prec")),
+      numericInput(ns("cv"), "CV objetivo", value = NULL, min = 0)
+    ),
+
+    # Amplitud
+    conditionalPanel(
+      condition = sprintf("input['%s'] == 'amp'", ns("prec")),
+      numericInput(ns("amp"), "Amplitud total del intervalo (A)", value = NULL, min = 0),
+      tags$small("Nota: A = 2e")
+    )
+  )
+}
+
+mod_precision_server <- function(id) {
+  moduleServer(id, function(input, output, session) {
+
+    reactive({
+
+      if (is.null(input$prec)) return(NULL)
+
+      if (input$prec == "e") {
+        return(list(tipo = "e", valor = input$e))
+      }
+
+      if (input$prec == "er") {
+        return(list(tipo = "er", valor = input$er))
+      }
+
+      if (input$prec == "cv") {
+        return(list(tipo = "cv", valor = input$cv))
+      }
+
+      if (input$prec == "amp") {
+        # convertir amplitud a error absoluto
+        e <- input$amp / 2
+        return(list(tipo = "e", valor = e))
+      }
+
+      NULL
+    })
+  })
+}
