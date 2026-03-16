@@ -20,8 +20,12 @@ mod_presupuesto_server <- function(id) {
   moduleServer(id, function(input, output, session) {
 
     validacion <- reactive({
-      if (is.na(input$c_h) || input$c_h < 0) return("c_h no puede ser negativo.")
-      if (is.na(input$c_upm) || input$c_upm < 0) return("c_UPM no puede ser negativo.")
+      if (is.null(input$c_h) || is.na(input$c_h) || input$c_h < 0) {
+        return("c_h debe ser un número mayor o igual a 0.")
+      }
+      if (is.null(input$c_upm) || is.na(input$c_upm) || input$c_upm < 0) {
+        return("c_UPM debe ser un número mayor o igual a 0.")
+      }
       NULL
     })
 

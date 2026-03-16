@@ -8,7 +8,7 @@ mod_diseno_ui <- function(id) {
   tagList(
     wellPanel(
       h3("4. Parámetros de diseño"),
-      p("Ingrese parámetros de diseño para cálculo DGJunction y funciones SS4HHSm/SS4HHSp."),
+      p("Ingrese parámetros de diseño para cálculo con funciones SS4HHSm/SS4HHSp."),
       fluidRow(
         column(6,
                numericInput(ns("N"), "N (tamaño de población):", value = NA, min = 1),
