@@ -1,5 +1,5 @@
 # =========================================================
-# PASO 6: Dominios de la mayor división administrativa (DAM)
+# MÓDULO 5: Cálculo de tamaño de muestra (nacional) con vector de LM
 # =========================================================
 
 mod_dominios_ui <- function(id) {
@@ -7,52 +7,55 @@ mod_dominios_ui <- function(id) {
 
   tagList(
     wellPanel(
-      h3("Módulo 5. Representatividad por DAM"),
-      radioButtons(
-        ns("usa_dominios"),
-        "¿Necesita representatividad por división administrativa (DAM)?",
-        choices = c("No" = "no", "Sí" = "si"),
-        selected = "no",
-        inline = TRUE
-      ),
-      conditionalPanel(
-        condition = sprintf("input['%s'] == 'si'", ns("usa_dominios")),
-        numericInput(ns("n_dominios"), "Ingrese número de dominios:", value = 2, min = 2),
-        helpText("El indicador (media+desviación o proporción) se toma del paso 1, según el flujo.")
-      ),
+      h3("Módulo 5. Cálculo de tamaño de muestra"),
+      p("Cálculo nacional con funciones: Media con ss4HHSm y Proporción con ss4HHSp."),
+      h4("Resultados para vector de LM/m"),
+      tableOutput(ns("tabla_nacional")),
       verbatimTextOutput(ns("resumen"))
     )
   )
 }
 
-mod_dominios_server <- function(id) {
+mod_dominios_server <- function(id, parametro, precision, unidad, diseno) {
   moduleServer(id, function(input, output, session) {
 
-    validacion <- reactive({
-      if (is.null(input$usa_dominios)) return("Debe seleccionar si usará representatividad por DAM.")
-      if (identical(input$usa_dominios, "si")) {
-        if (is.na(input$n_dominios) || input$n_dominios < 2) return("Número de dominios DAM debe ser >= 2.")
-      }
-      NULL
+    tabla_nacional <- reactive({
+      p <- parametro(); pr <- precision(); u <- unidad(); d <- diseno()
+      req(p, pr, u, d)
+
+      do.call(rbind, lapply(d$m_vector, function(m_i) {
+        n_hogares <- if (p$tipo == "Media") {
+          ss4HHSm(N = d$N, M = d$M, rho = d$rho, mu = p$xbarra, sigma = p$s, delta = pr$delta, conf = pr$conf, m = m_i)
+        } else {
+          ss4HHSp(N = d$N, M = d$M, rho = d$rho, p = p$p, delta = pr$delta, conf = pr$conf, m = m_i)
+        }
+
+        data.frame(
+          LM = m_i,
+          n_hogares_nacional = n_hogares,
+          n_encuestas_nacional = ceiling(n_hogares * u$r * u$b),
+          upm_nacional = ceiling(n_hogares / m_i)
+        )
+      }))
     })
 
+    output$tabla_nacional <- renderTable({
+      tabla_nacional()
+    }, striped = TRUE, bordered = TRUE)
+
     output$resumen <- renderPrint({
-      validate(need(is.null(validacion()), validacion()))
-      if (identical(input$usa_dominios, "si")) {
-        cat("DAM activo con", input$n_dominios, "dominios.\n")
-      } else {
-        cat("Sin representatividad por DAM.\n")
-      }
+      cat("Se calcularon resultados nacionales para todos los LM del vector.\n")
+      cat("En el siguiente módulo se pregunta si requiere representatividad DAM.\n")
     })
 
     list(
-      validacion = validacion,
+      validacion = reactive(NULL),
       datos = reactive({
-        validate(need(is.null(validacion()), validacion()))
-        if (!identical(input$usa_dominios, "si")) {
-          return(list(usa_dominios = FALSE, n_dominios = 1))
-        }
-        list(usa_dominios = TRUE, n_dominios = input$n_dominios)
+        d <- diseno(); req(d)
+        list(
+          tabla_nacional = tabla_nacional(),
+          LM_vector = d$m_vector
+        )
       })
     )
   })

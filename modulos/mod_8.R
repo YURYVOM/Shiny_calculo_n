@@ -28,16 +28,24 @@ mod_resultados_server <- function(id, entrada) {
     calc <- reactive({
       d <- entrada(); req(d)
 
-      n_base <- if (d$tipo_param == "Media") {
-        ss4HHSm(N = d$N, M = d$M, rho = d$rho, mu = d$xbarra, sigma = d$s, delta = d$delta, conf = d$conf, m = d$m_sel)
-      } else {
-        ss4HHSp(N = d$N, M = d$M, rho = d$rho, p = d$p, delta = d$delta, conf = d$conf, m = d$m_sel)
-      }
-
       if (isTRUE(d$usa_dominios)) {
-        tabla_dom <- data.frame(dominio = seq_len(d$n_dominios), n_hogares = rep(n_base, d$n_dominios))
-        n_hogares_total <- n_base * d$n_dominios
+        if (d$tipo_param == "Media") {
+          n_dom <- mapply(function(mu_i, sd_i, N_i) {
+            ss4HHSm(N = N_i, M = d$M, rho = d$rho, mu = mu_i, sigma = sd_i, delta = d$delta, conf = d$conf, m = d$m_sel)
+          }, d$param_dom, d$sd_dom, d$N_dom)
+        } else {
+          n_dom <- mapply(function(p_i, N_i) {
+            ss4HHSp(N = N_i, M = d$M, rho = d$rho, p = p_i, delta = d$delta, conf = d$conf, m = d$m_sel)
+          }, d$param_dom, d$N_dom)
+        }
+        tabla_dom <- data.frame(dominio = seq_len(d$n_dominios), n_hogares = as.numeric(n_dom))
+        n_hogares_total <- sum(n_dom)
       } else {
+        n_base <- if (d$tipo_param == "Media") {
+          ss4HHSm(N = d$N, M = d$M, rho = d$rho, mu = d$xbarra, sigma = d$s, delta = d$delta, conf = d$conf, m = d$m_sel)
+        } else {
+          ss4HHSp(N = d$N, M = d$M, rho = d$rho, p = d$p, delta = d$delta, conf = d$conf, m = d$m_sel)
+        }
         tabla_dom <- data.frame(dominio = 1, n_hogares = n_base)
         n_hogares_total <- n_base
       }
@@ -73,12 +81,24 @@ mod_resultados_server <- function(id, entrada) {
         "p <- ", ifelse(is.null(d$p), "NA", d$p), "\n",
         "r <- ", d$r, "\nb <- ", d$b, "\n",
         "usa_dominios <- ", ifelse(d$usa_dominios, "TRUE", "FALSE"), "\n",
-        "n_dominios <- ", d$n_dominios, "\n\n",
-        "n_base <- if (tipo_param == 'Media') ss4HHSm(N, M, rho, mu, sigma, delta, conf, m) else ss4HHSp(N, M, rho, p, delta, conf, m)\n",
-        "n_hogares_total <- if (usa_dominios) n_base * n_dominios else n_base\n",
+        "n_dominios <- ", d$n_dominios, "\n",
+        "param_dom <- c(", paste(d$param_dom, collapse = ","), ")\n",
+        "sd_dom <- c(", paste(d$sd_dom, collapse = ","), ")\n",
+        "N_dom <- c(", paste(d$N_dom, collapse = ","), ")\n\n",
+        "if (usa_dominios) {\n",
+        "  if (tipo_param == 'Media') {\n",
+        "    n_dom <- mapply(function(mu_i, sd_i, N_i) ss4HHSm(N_i, M, rho, mu_i, sd_i, delta, conf, m), param_dom, sd_dom, N_dom)\n",
+        "  } else {\n",
+        "    n_dom <- mapply(function(p_i, N_i) ss4HHSp(N_i, M, rho, p_i, delta, conf, m), param_dom, N_dom)\n",
+        "  }\n",
+        "  n_hogares_total <- sum(n_dom)\n",
+        "} else {\n",
+        "  n_base <- if (tipo_param == 'Media') ss4HHSm(N, M, rho, mu, sigma, delta, conf, m) else ss4HHSp(N, M, rho, p, delta, conf, m)\n",
+        "  n_hogares_total <- n_base\n",
+        "}\n",
         "n_encuestas <- ceiling(n_hogares_total * r * b)\n",
         "upm <- ceiling(n_hogares_total / m)\n",
-        "print(list(n_base=n_base, n_hogares_total=n_hogares_total, n_encuestas=n_encuestas, upm=upm))\n"
+        "print(list(n_hogares_total=n_hogares_total, n_encuestas=n_encuestas, upm=upm))\n"
       )
     })
 

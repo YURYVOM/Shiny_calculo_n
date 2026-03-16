@@ -65,10 +65,9 @@ server <- function(input, output, session) {
   parametro_valor <- reactive({ p <- mod1$datos(); req(p); p$valor })
   mod3 <- mod_precision_server("precision", parametro = parametro_valor)
   precision_datos <- reactive({ list(delta = mod3$amplitud() / 2, conf = mod3$conf()) })
-  mod4 <- mod_diseno_server("diseno", parametro = mod1$datos, precision = precision_datos, unidad = mod2$datos)
-  mod5 <- mod_dominios_server("dominios")
-  n_dominios_rx <- reactive({ d <- mod5$datos(); req(d); d$n_dominios })
-  mod6 <- mod_asignacion_server("asignacion", n_dominios_rx = n_dominios_rx)
+  mod4 <- mod_diseno_server("diseno")
+  mod5 <- mod_dominios_server("dominios", parametro = mod1$datos, precision = precision_datos, unidad = mod2$datos, diseno = mod4$datos)
+  mod6 <- mod_asignacion_server("asignacion", dominios_datos = mod5$datos, parametro = mod1$datos)
 
   entrada_exportable <- reactive({
     p1 <- mod1$datos(); p2 <- mod2$datos(); d4 <- mod4$datos(); d5 <- mod5$datos(); a6 <- mod6$datos()
@@ -87,10 +86,13 @@ server <- function(input, output, session) {
       conf = mod3$conf(),
       N = d4$N,
       M = d4$M,
-      m_sel = d4$m_sel,
       rho = d4$rho,
-      usa_dominios = d5$usa_dominios,
-      n_dominios = d5$n_dominios,
+      usa_dominios = a6$usa_dominios,
+      n_dominios = a6$n_dominios,
+      m_sel = a6$lm_sel,
+      param_dom = a6$param_dom,
+      sd_dom = a6$sd_dom,
+      N_dom = a6$N_dom,
 
       usa_area = a6$usa_area,
       n_areas = a6$n_areas,
@@ -106,9 +108,9 @@ server <- function(input, output, session) {
       "paso1" = "Módulo 1 de 7: Seleccionar parámetro de interés",
       "paso2" = "Módulo 2 de 7: Unidad de análisis",
       "paso3" = "Módulo 3 de 7: Precisión (amplitud + confianza)",
-      "paso4" = "Módulo 4 de 7: Diseño, MRB y vector de m",
-      "paso5" = "Módulo 5 de 7: Dominios DAM",
-      "paso6" = "Módulo 6 de 7: Asignación por área (IPFP)",
+      "paso4" = "Módulo 4 de 7: Parámetros de diseño",
+      "paso5" = "Módulo 5 de 7: Cálculo de tamaño de muestra (nacional)",
+      "paso6" = "Módulo 6 de 7: Representatividad DAM y selección LM para AM",
       "paso7" = "Módulo 7 de 7: Tablas de muestreo y exportación"
     )
   })
