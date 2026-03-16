@@ -89,10 +89,11 @@ mod_resultados_server <- function(id, entrada_base) {
       m_sel <- if (isTRUE(d$usa_dominios)) as.numeric(input$m_sel) else as.numeric(d$m_sel_nacional)
 
       if (isTRUE(d$usa_dominios)) {
+        delta_dom <- if (!is.null(d$delta_dom) && length(d$delta_dom) == length(d$param_dom)) d$delta_dom else rep(d$delta, length(d$param_dom))
         if (d$tipo_param == "Media") {
-          n_dom <- mapply(function(mu_i, sd_i, N_i, M_i) ss4HHSm(N_i, M_i, d$rho, mu_i, sd_i, d$delta, d$conf, m_sel), d$param_dom, d$sd_dom, d$N_dom, d$M_dom)
+          n_dom <- mapply(function(mu_i, sd_i, N_i, M_i, delta_i) ss4HHSm(N_i, M_i, d$rho, mu_i, sd_i, delta_i, d$conf, m_sel), d$param_dom, d$sd_dom, d$N_dom, d$M_dom, delta_dom)
         } else {
-          n_dom <- mapply(function(p_i, N_i, M_i) ss4HHSp(N_i, M_i, d$rho, p_i, d$delta, d$conf, m_sel), d$param_dom, d$N_dom, d$M_dom)
+          n_dom <- mapply(function(p_i, N_i, M_i, delta_i) ss4HHSp(N_i, M_i, d$rho, p_i, delta_i, d$conf, m_sel), d$param_dom, d$N_dom, d$M_dom, delta_dom)
         }
       } else {
         n_base <- if (d$tipo_param == "Media") {
