@@ -97,8 +97,11 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
     observe({
       d <- diseno(); req(d)
 
-      dam_choices <- if (identical(input$usa_dominios, "si") && !is.null(input$n_dominios) && input$n_dominios >= 2) {
-        c("Todos", as.character(seq_len(input$n_dominios)))
+      n_dom <- suppressWarnings(as.integer(input$n_dominios))
+      tiene_dominios <- identical(input$usa_dominios, "si") && !is.na(n_dom) && n_dom >= 2
+
+      dam_choices <- if (isTRUE(tiene_dominios)) {
+        c("Todos", as.character(seq_len(n_dom)))
       } else c("Todos")
       dam_sel <- if (!is.null(input$dam_filtro) && input$dam_filtro %in% dam_choices) input$dam_filtro else "Todos"
       updateSelectInput(session, "dam_filtro", choices = dam_choices, selected = dam_sel)
