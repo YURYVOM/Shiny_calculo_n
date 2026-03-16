@@ -10,7 +10,9 @@ mod_presupuesto_ui <- function(id) {
       h3("Módulo 5. Tamaño de muestra"),
       p("En este paso no se selecciona m: se calcula y muestra la tabla para todos los valores de m."),
       h4("Tabla de muestreo para vector de m"),
-      tableOutput(ns("tabla_muestreo"))
+      tableOutput(ns("tabla_muestreo")),
+      h4("Base resultante completa (salida de la función)"),
+      verbatimTextOutput(ns("base_resultante"))
     )
   )
 }
@@ -71,6 +73,11 @@ mod_presupuesto_server <- function(id, parametro, precision, unidad, diseno) {
       validate(need(is.null(validacion()), validacion()))
       tabla_muestreo()
     }, striped = TRUE, bordered = TRUE, spacing = "m")
+
+    output$base_resultante <- renderPrint({
+      validate(need(is.null(validacion()), validacion()))
+      print(tabla_muestreo(), row.names = FALSE)
+    })
 
     list(
       validacion = validacion,
