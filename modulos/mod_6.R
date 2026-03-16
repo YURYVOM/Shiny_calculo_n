@@ -19,6 +19,18 @@ mod_asignacion_ui <- function(id) {
       conditionalPanel(
         condition = sprintf("input['%s'] == 'si'", ns("usa_dominios")),
         numericInput(ns("n_dominios"), "Número de dominios DAM:", value = 2, min = 2),
+        radioButtons(
+          ns("unidad_dam"),
+          "Nivel de estimación DAM:",
+          choices = c("Hogares" = "Hogares", "Personas" = "Personas"),
+          selected = "Hogares",
+          inline = TRUE
+        ),
+        conditionalPanel(
+          condition = sprintf("input['%s'] == 'Personas'", ns("unidad_dam")),
+          numericInput(ns("r_dam"), "Ingrese r DAM (promedio de personas por hogar):", value = NA, min = 0, step = 0.01),
+          numericInput(ns("b_dam"), "Ingrese b DAM (proporción elegible, entre 0 y 1):", value = NA, min = 0, max = 1, step = 0.01)
+        ),
         uiOutput(ns("dominios_ui")),
         fluidRow(
           column(6, selectInput(ns("dam_filtro"), "Filtro DAM para visualizar:", choices = character(0))),
@@ -163,6 +175,11 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
       } else if (any(v$param_dom < 0 | v$param_dom > 1)) {
         return("Parámetros de proporción por DAM deben estar entre 0 y 1.")
       }
+      if (identical(input$unidad_dam, "Personas")) {
+        if (is.na(input$r_dam) || is.na(input$b_dam)) return("Debe ingresar r y b para DAM cuando la unidad es Personas.")
+        if (input$r_dam <= 0) return("El valor de r DAM debe ser mayor que 0.")
+        if (input$b_dam < 0 || input$b_dam > 1) return("El valor de b DAM debe estar entre 0 y 1.")
+      }
       NULL
     })
 
@@ -180,6 +197,7 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
       if (identical(input$usa_dominios, "si")) {
         cat("Representatividad DAM: Sí\n")
         cat("Se guardaron parámetro, N, M y amplitud por dominio DAM.\n")
+        cat("Unidad DAM:", input$unidad_dam, "(r=", ifelse(input$unidad_dam == "Personas", input$r_dam, 1), ", b=", ifelse(input$unidad_dam == "Personas", input$b_dam, 1), ")\n")
       } else {
         cat("Representatividad DAM: No\n")
         cat("Se usarán los parámetros nacionales en el módulo final.\n")
@@ -217,7 +235,10 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
           amplitud_dom = v$amplitud_dom,
           delta_dom = v$delta_dom,
           tabla_dam = tabla_dam_completa(),
-          m_vector = d$m_vector
+          m_vector = d$m_vector,
+          unidad_dam = if (identical(input$usa_dominios, "si")) input$unidad_dam else "Hogares",
+          r_dam = if (identical(input$usa_dominios, "si") && identical(input$unidad_dam, "Personas")) input$r_dam else 1,
+          b_dam = if (identical(input$usa_dominios, "si") && identical(input$unidad_dam, "Personas")) input$b_dam else 1
         )
       })
     )
