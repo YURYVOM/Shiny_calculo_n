@@ -1,5 +1,5 @@
 # =========================================================
-# MÓDULO 6: Representatividad DAM (ingreso por dominio + selección nacional)
+# MÓDULO 6: Representatividad DAM (ingreso por dominio)
 # =========================================================
 
 mod_asignacion_ui <- function(id) {
@@ -8,7 +8,7 @@ mod_asignacion_ui <- function(id) {
   tagList(
     wellPanel(
       h3("Módulo 6. Representatividad por DAM"),
-      p("Paso 1: indique si desea representatividad por DAM."),
+      p("Indique si desea representatividad a nivel de División Administrativa Mayor (DAM)."),
       radioButtons(
         ns("usa_dominios"),
         "¿Desea representatividad por DAM?",
@@ -18,18 +18,12 @@ mod_asignacion_ui <- function(id) {
       ),
       conditionalPanel(
         condition = sprintf("input['%s'] == 'si'", ns("usa_dominios")),
-        p("Paso 2: ingrese los valores por dominio DAM."),
         numericInput(ns("n_dominios"), "Número de dominios DAM:", value = 2, min = 2),
         uiOutput(ns("dominios_ui")),
         fluidRow(
           column(6, selectInput(ns("dam_filtro"), "Filtro DAM para visualizar:", choices = character(0))),
           column(6, selectInput(ns("m_filtro"), "Filtro m para visualizar:", choices = character(0)))
         )
-      ),
-      conditionalPanel(
-        condition = sprintf("input['%s'] == 'no'", ns("usa_dominios")),
-        p("Paso 2: seleccione el m nacional que más le gustó."),
-        selectInput(ns("m_nacional"), "Seleccione m nacional:", choices = character(0))
       ),
       h4("Resultados por DAM y por m (salida de función)"),
       tableOutput(ns("tabla_dam")),
@@ -55,6 +49,7 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
       param_dom <- vapply(seq_len(n), function(i) valor_num_input(paste0("param_dom_", i)), numeric(1))
       N_dom <- vapply(seq_len(n), function(i) valor_num_input(paste0("N_dom_", i)), numeric(1))
       M_dom <- vapply(seq_len(n), function(i) valor_num_input(paste0("M_dom_", i)), numeric(1))
+      amplitud_dom <- vapply(seq_len(n), function(i) valor_num_input(paste0("amplitud_dom_", i)), numeric(1))
 
       if (p$tipo == "Media") {
         sd_dom <- vapply(seq_len(n), function(i) valor_num_input(paste0("sd_dom_", i)), numeric(1))
@@ -62,7 +57,14 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
         sd_dom <- numeric(0)
       }
 
-      list(param_dom = param_dom, sd_dom = sd_dom, N_dom = N_dom, M_dom = M_dom)
+      list(
+        param_dom = param_dom,
+        sd_dom = sd_dom,
+        N_dom = N_dom,
+        M_dom = M_dom,
+        amplitud_dom = amplitud_dom,
+        delta_dom = amplitud_dom / 2
+      )
     })
 
     output$dominios_ui <- renderUI({
@@ -72,10 +74,20 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
 
       filas <- lapply(seq_len(n), function(i) {
         fluidRow(
-          column(3, numericInput(session$ns(paste0("param_dom_", i)), sprintf("DAM %s: parámetro", i), value = NA, min = if (p$tipo == "Proporción") 0 else NA, max = if (p$tipo == "Proporción") 1 else NA)),
-          column(3, if (p$tipo == "Media") numericInput(session$ns(paste0("sd_dom_", i)), sprintf("DAM %s: desviación", i), value = NA, min = 0) else tags$div()),
-          column(3, numericInput(session$ns(paste0("N_dom_", i)), sprintf("DAM %s: N", i), value = NA, min = 1)),
-          column(3, numericInput(session$ns(paste0("M_dom_", i)), sprintf("DAM %s: M", i), value = NA, min = 1))
+          column(
+            3,
+            numericInput(
+              session$ns(paste0("param_dom_", i)),
+              if (p$tipo == "Media") sprintf("DAM %s: media esperada", i) else sprintf("DAM %s: proporción p", i),
+              value = NA,
+              min = if (p$tipo == "Proporción") 0 else NA,
+              max = if (p$tipo == "Proporción") 1 else NA
+            )
+          ),
+          column(3, if (p$tipo == "Media") numericInput(session$ns(paste0("sd_dom_", i)), sprintf("DAM %s: desviación estándar", i), value = NA, min = 0) else tags$div()),
+          column(2, numericInput(session$ns(paste0("N_dom_", i)), sprintf("DAM %s: N", i), value = NA, min = 1)),
+          column(2, numericInput(session$ns(paste0("M_dom_", i)), sprintf("DAM %s: M", i), value = NA, min = 1)),
+          column(2, numericInput(session$ns(paste0("amplitud_dom_", i)), sprintf("DAM %s: amplitud", i), value = NA, min = 0, step = 0.001))
         )
       })
 
@@ -84,35 +96,28 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
 
     observe({
       d <- diseno(); req(d)
-      m_choices <- as.character(d$m_vector)
 
-      m_sel <- if (!is.null(input$m_nacional) && input$m_nacional %in% m_choices) input$m_nacional else m_choices[1]
-      updateSelectInput(session, "m_nacional", choices = m_choices, selected = m_sel)
+      n_dom <- suppressWarnings(as.integer(input$n_dominios))
+      tiene_dominios <- identical(input$usa_dominios, "si") && !is.na(n_dom) && n_dom >= 2
 
-      dam_choices <- if (identical(input$usa_dominios, "si") && !is.null(input$n_dominios) && input$n_dominios >= 2) {
-        c("Todos", as.character(seq_len(input$n_dominios)))
-      } else c("Todos", "1")
+      dam_choices <- if (isTRUE(tiene_dominios)) {
+        c("Todos", as.character(seq_len(n_dom)))
+      } else c("Todos")
       dam_sel <- if (!is.null(input$dam_filtro) && input$dam_filtro %in% dam_choices) input$dam_filtro else "Todos"
       updateSelectInput(session, "dam_filtro", choices = dam_choices, selected = dam_sel)
 
+      m_choices <- as.character(d$m_vector)
       m_filter_choices <- c("Todos", m_choices)
       m_filter_sel <- if (!is.null(input$m_filtro) && input$m_filtro %in% m_filter_choices) input$m_filtro else "Todos"
       updateSelectInput(session, "m_filtro", choices = m_filter_choices, selected = m_filter_sel)
     })
 
     tabla_dam_completa <- reactive({
-      p <- parametro(); pr <- precision(); u <- unidad(); d <- diseno()
-      req(p, pr, u, d)
+      p <- parametro(); pr <- precision(); d <- diseno()
+      req(p, pr, d)
 
       if (!identical(input$usa_dominios, "si")) {
-        return(do.call(rbind, lapply(d$m_vector, function(m_i) {
-          n_h <- if (p$tipo == "Media") {
-            ss4HHSm(N = d$N, M = d$M, rho = d$rho, mu = p$xbarra, sigma = p$s, delta = pr$delta, conf = pr$conf, m = m_i)
-          } else {
-            ss4HHSp(N = d$N, M = d$M, rho = d$rho, p = p$p, delta = pr$delta, conf = pr$conf, m = m_i)
-          }
-          data.frame(dam = 1, m = m_i, n_hogares = n_h, n_encuestas = ceiling(n_h * u$r * u$b), upm = ceiling(n_h / m_i))
-        })))
+        return(data.frame())
       }
 
       v <- valores_dominios()
@@ -120,11 +125,18 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
       for (j in seq_len(input$n_dominios)) {
         for (m_i in d$m_vector) {
           n_h <- if (p$tipo == "Media") {
-            ss4HHSm(N = v$N_dom[j], M = v$M_dom[j], rho = d$rho, mu = v$param_dom[j], sigma = v$sd_dom[j], delta = pr$delta, conf = pr$conf, m = m_i)
+            ss4HHSm(N = v$N_dom[j], M = v$M_dom[j], rho = d$rho, mu = v$param_dom[j], sigma = v$sd_dom[j], delta = v$delta_dom[j], conf = pr$conf, m = m_i)
           } else {
-            ss4HHSp(N = v$N_dom[j], M = v$M_dom[j], rho = d$rho, p = v$param_dom[j], delta = pr$delta, conf = pr$conf, m = m_i)
+            ss4HHSp(N = v$N_dom[j], M = v$M_dom[j], rho = d$rho, p = v$param_dom[j], delta = v$delta_dom[j], conf = pr$conf, m = m_i)
           }
-          out[[k]] <- data.frame(dam = j, m = m_i, n_hogares = n_h, n_encuestas = ceiling(n_h * u$r * u$b), upm = ceiling(n_h / m_i))
+          out[[k]] <- data.frame(
+            dam = j,
+            HouseholdsPerPSU = m_i,
+            DEFF = round(1 + (m_i - 1) * d$rho, 2),
+            PSUinSample = ceiling(n_h / m_i),
+            HouseholdsInSample = n_h,
+            stringsAsFactors = FALSE
+          )
           k <- k + 1
         }
       }
@@ -132,31 +144,34 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
     })
 
     validacion <- reactive({
-      p <- parametro(); d <- diseno(); req(p, d)
+      p <- parametro(); req(p)
 
       if (!identical(input$usa_dominios, "si")) {
-        if (is.null(input$m_nacional) || !(input$m_nacional %in% as.character(d$m_vector))) return("Seleccione un m nacional válido.")
         return(NULL)
       }
 
       if (is.na(input$n_dominios) || input$n_dominios < 2) return("Número de dominios DAM debe ser >= 2.")
       v <- valores_dominios()
       if (any(is.na(v$param_dom)) || any(is.na(v$N_dom)) || any(is.na(v$M_dom)) || any(v$N_dom <= 0) || any(v$M_dom <= 0)) {
-        return("Revise parámetros, N y M por DAM (numéricos y > 0).")
+        return("Revise parámetro, N y M por DAM (numéricos y > 0).")
+      }
+      if (any(is.na(v$amplitud_dom)) || any(v$amplitud_dom <= 0)) {
+        return("La amplitud por DAM debe ser mayor que 0.")
       }
       if (p$tipo == "Media") {
         if (any(is.na(v$sd_dom)) || any(v$sd_dom <= 0)) return("Desviación estándar por DAM debe ser > 0.")
       } else if (any(v$param_dom < 0 | v$param_dom > 1)) {
-        return("Parámetros proporción por DAM deben estar entre 0 y 1.")
+        return("Parámetros de proporción por DAM deben estar entre 0 y 1.")
       }
       NULL
     })
 
     output$tabla_dam <- renderTable({
       validate(need(is.null(validacion()), validacion()))
+      if (!identical(input$usa_dominios, "si")) return(data.frame(Nota = "No se solicitó representatividad por DAM."))
       tb <- tabla_dam_completa()
       if (!is.null(input$dam_filtro) && input$dam_filtro != "Todos") tb <- tb[tb$dam == as.numeric(input$dam_filtro), , drop = FALSE]
-      if (!is.null(input$m_filtro) && input$m_filtro != "Todos") tb <- tb[tb$m == as.numeric(input$m_filtro), , drop = FALSE]
+      if (!is.null(input$m_filtro) && input$m_filtro != "Todos") tb <- tb[tb$HouseholdsPerPSU == as.numeric(input$m_filtro), , drop = FALSE]
       tb
     }, striped = TRUE, bordered = TRUE)
 
@@ -164,10 +179,10 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
       validate(need(is.null(validacion()), validacion()))
       if (identical(input$usa_dominios, "si")) {
         cat("Representatividad DAM: Sí\n")
-        cat("Se guardaron los valores por dominio y se calculó para todos los m.\n")
+        cat("Se guardaron parámetro, N, M y amplitud por dominio DAM.\n")
       } else {
         cat("Representatividad DAM: No\n")
-        cat("m nacional elegido:", input$m_nacional, "\n")
+        cat("Se usarán los parámetros nacionales en el módulo final.\n")
       }
       cat("Continúe al siguiente módulo para los resultados finales y área.\n")
     })
@@ -177,16 +192,30 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
       datos = reactive({
         validate(need(is.null(validacion()), validacion()))
         d <- diseno(); p <- parametro(); req(d, p)
-        v <- if (identical(input$usa_dominios, "si")) valores_dominios() else list(param_dom = numeric(0), sd_dom = numeric(0), N_dom = numeric(0), M_dom = numeric(0))
+
+        if (identical(input$usa_dominios, "si")) {
+          v <- valores_dominios()
+        } else {
+          v <- list(
+            param_dom = numeric(0),
+            sd_dom = numeric(0),
+            N_dom = numeric(0),
+            M_dom = numeric(0),
+            amplitud_dom = numeric(0),
+            delta_dom = numeric(0)
+          )
+        }
 
         list(
           usa_dominios = identical(input$usa_dominios, "si"),
-          m_sel_nacional = if (identical(input$usa_dominios, "si")) NA_real_ else as.numeric(input$m_nacional),
+          m_sel_nacional = if (identical(input$usa_dominios, "si")) NA_real_ else d$m_vector[1],
           n_dominios = if (identical(input$usa_dominios, "si")) input$n_dominios else 1,
           param_dom = v$param_dom,
           sd_dom = if (identical(input$usa_dominios, "si") && p$tipo == "Media") v$sd_dom else numeric(0),
           N_dom = v$N_dom,
           M_dom = v$M_dom,
+          amplitud_dom = v$amplitud_dom,
+          delta_dom = v$delta_dom,
           tabla_dam = tabla_dam_completa(),
           m_vector = d$m_vector
         )

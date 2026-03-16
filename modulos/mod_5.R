@@ -10,7 +10,7 @@ mod_presupuesto_ui <- function(id) {
       h3("Paso 5. Tamaño de muestra"),
       p("En este paso no se selecciona m: se calcula y muestra la tabla para todos los valores de m."),
       h4("Salida de la función (variables originales)"),
-      shiny::dataTableOutput(ns("tabla_muestreo"))
+      DT::DTOutput(ns("tabla_muestreo"))
     )
   )
 }
@@ -81,7 +81,7 @@ mod_presupuesto_server <- function(id, parametro, precision, unidad, diseno) {
       NULL
     })
 
-    output$tabla_muestreo <- shiny::renderDataTable({
+    output$tabla_muestreo <- DT::renderDT({
       shiny::validate(shiny::need(is.null(validacion()), validacion()))
       tabla_funcion()
     }, options = list(pageLength = 10, scrollX = TRUE, autoWidth = TRUE))
