@@ -1,5 +1,5 @@
 # =========================================================
-# MÓDULO 2: Unidad de análisis
+# PASO 2: Unidad de análisis
 # Permite seleccionar:
 # - Hogares  -> fija r = 1, b = 1
 # - Personas -> pide r y b
@@ -11,7 +11,7 @@ mod_unidad_ui <- function(id) {
 
   shiny::tagList(
     shiny::wellPanel(
-      h3("2. Unidad de análisis"),
+      h3("Módulo 2. Unidad de análisis"),
 
       shiny::radioButtons(
         inputId = ns("unidad"),
