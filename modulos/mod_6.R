@@ -113,8 +113,8 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
     })
 
     tabla_dam_completa <- reactive({
-      p <- parametro(); pr <- precision(); u <- unidad(); d <- diseno()
-      req(p, pr, u, d)
+      p <- parametro(); pr <- precision(); d <- diseno()
+      req(p, pr, d)
 
       if (!identical(input$usa_dominios, "si")) {
         return(data.frame())
@@ -129,7 +129,14 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
           } else {
             ss4HHSp(N = v$N_dom[j], M = v$M_dom[j], rho = d$rho, p = v$param_dom[j], delta = v$delta_dom[j], conf = pr$conf, m = m_i)
           }
-          out[[k]] <- data.frame(dam = j, m = m_i, n_hogares = n_h, n_encuestas = ceiling(n_h * u$r * u$b), upm = ceiling(n_h / m_i))
+          out[[k]] <- data.frame(
+            dam = j,
+            HouseholdsPerPSU = m_i,
+            DEFF = round(1 + (m_i - 1) * d$rho, 2),
+            PSUinSample = ceiling(n_h / m_i),
+            HouseholdsInSample = n_h,
+            stringsAsFactors = FALSE
+          )
           k <- k + 1
         }
       }
@@ -164,7 +171,7 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
       if (!identical(input$usa_dominios, "si")) return(data.frame(Nota = "No se solicitó representatividad por DAM."))
       tb <- tabla_dam_completa()
       if (!is.null(input$dam_filtro) && input$dam_filtro != "Todos") tb <- tb[tb$dam == as.numeric(input$dam_filtro), , drop = FALSE]
-      if (!is.null(input$m_filtro) && input$m_filtro != "Todos") tb <- tb[tb$m == as.numeric(input$m_filtro), , drop = FALSE]
+      if (!is.null(input$m_filtro) && input$m_filtro != "Todos") tb <- tb[tb$HouseholdsPerPSU == as.numeric(input$m_filtro), , drop = FALSE]
       tb
     }, striped = TRUE, bordered = TRUE)
 
