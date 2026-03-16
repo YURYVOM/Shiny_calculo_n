@@ -1,5 +1,5 @@
 # =========================================================
-# PASO 5: Cálculo de tamaño de muestra
+# Módulo 5: Cálculo de tamaño de muestra
 # =========================================================
 
 mod_presupuesto_ui <- function(id) {
@@ -46,7 +46,24 @@ mod_presupuesto_server <- function(id, parametro, precision, unidad, diseno) {
           HouseholdsInSample = n_hogares,
           stringsAsFactors = FALSE
         )
-      }))
+      }
+
+      out <- as.data.frame(out)
+
+      if ("HouseholdsPerPSU" %in% names(out)) {
+        names(out)[names(out) == "HouseholdsPerPSU"] <- "m"
+      }
+
+      out
+    })
+
+    tabla_muestreo <- reactive({
+      p <- parametro(); pr <- precision(); u <- unidad(); d <- diseno(); req(p, pr, u, d)
+      tb <- tabla_funcion()
+      transform(
+        tb,
+        n_encuestas = ceiling(HouseholdsInSample * u$r * u$b)
+      )
     })
 
     validacion <- shiny::reactive({
