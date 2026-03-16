@@ -106,8 +106,11 @@ mod_resultados_server <- function(id, entrada_base) {
 
       tabla_dom <- data.frame(dam = seq_len(length(n_dom)), n_hogares = as.numeric(n_dom))
       n_hogares_total <- sum(n_dom)
-      factor_personas <- if (isTRUE(d$usa_dominios)) d$r_dam * d$b_dam else d$r * d$b
-      n_encuestas <- ceiling(n_hogares_total * factor_personas)
+      n_encuestas <- if (isTRUE(d$usa_dominios)) {
+        ceiling(sum(as.numeric(n_dom) * d$r_dam * d$b_dam))
+      } else {
+        ceiling(n_hogares_total * d$r * d$b)
+      }
       upm <- ceiling(n_hogares_total / m_sel)
 
       tabla_area <- if (identical(input$usa_area, "si")) ipfp_aproximada(tabla_matrix(), n_hogares_total) else matrix(n_hogares_total, nrow = max(1, d$n_dominios), ncol = 1)
@@ -135,6 +138,8 @@ mod_resultados_server <- function(id, entrada_base) {
       N_dom_txt <- if (length(d$N_dom)) paste(d$N_dom, collapse = ", ") else ""
       M_dom_txt <- if (length(d$M_dom)) paste(d$M_dom, collapse = ", ") else ""
       amplitud_dom_txt <- if (length(d$amplitud_dom)) paste(d$amplitud_dom, collapse = ", ") else ""
+      r_dam_txt <- if (length(d$r_dam)) paste(d$r_dam, collapse = ", ") else ""
+      b_dam_txt <- if (length(d$b_dam)) paste(d$b_dam, collapse = ", ") else ""
 
       script <- paste0(
 "# =========================================================\n",
@@ -158,8 +163,8 @@ if (d$tipo_param == "Media") paste0("xbarra <- ", d$xbarra, "\n", "s <- ", d$s, 
 "usa_dominios <- ", tolower(as.character(d$usa_dominios)), "\n",
 "n_dominios <- ", d$n_dominios, "\n",
 "unidad_dam <- '", d$unidad_dam, "'\n",
-"r_dam <- ", d$r_dam, "\n",
-"b_dam <- ", d$b_dam, "\n",
+"r_dam <- c(", r_dam_txt, ")\n",
+"b_dam <- c(", b_dam_txt, ")\n",
 if (d$tipo_param == "Media") paste0("mu_dom <- c(", param_dom_txt, ")\n", "sigma_dom <- c(", sd_dom_txt, ")\n") else paste0("p_dom <- c(", param_dom_txt, ")\n"),
 "N_dom <- c(", N_dom_txt, ")\n",
 "M_dom <- c(", M_dom_txt, ")\n",
@@ -170,11 +175,12 @@ if (d$tipo_param == "Media") paste0("mu_dom <- c(", param_dom_txt, ")\n", "sigma
 "tabla_prop <- ", tabla_prop_txt, "\n\n",
 "# ---- Cálculo principal ----\n",
 "if (isTRUE(usa_dominios)) {\n",
-"  # Si DAM es a nivel personas, r_dam y b_dam deben venir informados (>0 y [0,1])\n",
+"  # Si DAM es a nivel personas, r_dam y b_dam deben venir informados por DAM (>0 y [0,1])\n",
 "  if (unidad_dam == 'Personas') {\n",
-"    stopifnot(!is.na(r_dam), r_dam > 0, !is.na(b_dam), b_dam >= 0, b_dam <= 1)\n",
+"    stopifnot(length(r_dam) == n_dominios, all(!is.na(r_dam)), all(r_dam > 0),\n",
+"              length(b_dam) == n_dominios, all(!is.na(b_dam)), all(b_dam >= 0), all(b_dam <= 1))\n",
 "  } else {\n",
-"    r_dam <- 1; b_dam <- 1\n",
+"    r_dam <- rep(1, n_dominios); b_dam <- rep(1, n_dominios)\n",
 "  }\n",
 "\n",
 "  if (tipo_param == 'Media') {\n",
@@ -189,7 +195,7 @@ if (d$tipo_param == "Media") paste0("mu_dom <- c(", param_dom_txt, ")\n", "sigma
 "\n",
 "  tabla_dom <- data.frame(dam = seq_along(n_dom), n_hogares = as.numeric(n_dom))\n",
 "  n_hogares_total <- sum(n_dom)\n",
-"  n_encuestas <- ceiling(n_hogares_total * r_dam * b_dam)\n",
+"  n_encuestas <- ceiling(sum(as.numeric(n_dom) * r_dam * b_dam))\n",
 "} else {\n",
 "  # Cálculo nacional\n",
 "  if (tipo_param == 'Media') {\n",

@@ -28,8 +28,7 @@ mod_asignacion_ui <- function(id) {
         ),
         conditionalPanel(
           condition = sprintf("input['%s'] == 'Personas'", ns("unidad_dam")),
-          numericInput(ns("r_dam"), "Ingrese r DAM (promedio de personas por hogar):", value = NA, min = 0, step = 0.01),
-          numericInput(ns("b_dam"), "Ingrese b DAM (proporción elegible, entre 0 y 1):", value = NA, min = 0, max = 1, step = 0.01)
+          p("Si DAM es a nivel Personas, ingrese r y b para cada DAM en la tabla de dominios.")
         ),
         uiOutput(ns("dominios_ui")),
         fluidRow(
@@ -62,6 +61,8 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
       N_dom <- vapply(seq_len(n), function(i) valor_num_input(paste0("N_dom_", i)), numeric(1))
       M_dom <- vapply(seq_len(n), function(i) valor_num_input(paste0("M_dom_", i)), numeric(1))
       amplitud_dom <- vapply(seq_len(n), function(i) valor_num_input(paste0("amplitud_dom_", i)), numeric(1))
+      r_dom <- vapply(seq_len(n), function(i) valor_num_input(paste0("r_dom_", i)), numeric(1))
+      b_dom <- vapply(seq_len(n), function(i) valor_num_input(paste0("b_dom_", i)), numeric(1))
 
       if (p$tipo == "Media") {
         sd_dom <- vapply(seq_len(n), function(i) valor_num_input(paste0("sd_dom_", i)), numeric(1))
@@ -75,7 +76,9 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
         N_dom = N_dom,
         M_dom = M_dom,
         amplitud_dom = amplitud_dom,
-        delta_dom = amplitud_dom / 2
+        delta_dom = amplitud_dom / 2,
+        r_dom = r_dom,
+        b_dom = b_dom
       )
     })
 
@@ -99,7 +102,9 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
           column(3, if (p$tipo == "Media") numericInput(session$ns(paste0("sd_dom_", i)), sprintf("DAM %s: desviación estándar", i), value = NA, min = 0) else tags$div()),
           column(2, numericInput(session$ns(paste0("N_dom_", i)), sprintf("DAM %s: N", i), value = NA, min = 1)),
           column(2, numericInput(session$ns(paste0("M_dom_", i)), sprintf("DAM %s: M", i), value = NA, min = 1)),
-          column(2, numericInput(session$ns(paste0("amplitud_dom_", i)), sprintf("DAM %s: amplitud", i), value = NA, min = 0, step = 0.001))
+          column(2, numericInput(session$ns(paste0("amplitud_dom_", i)), sprintf("DAM %s: amplitud", i), value = NA, min = 0, step = 0.001)),
+          column(1, if (identical(input$unidad_dam, "Personas")) numericInput(session$ns(paste0("r_dom_", i)), sprintf("DAM %s: r", i), value = NA, min = 0, step = 0.01) else tags$div()),
+          column(1, if (identical(input$unidad_dam, "Personas")) numericInput(session$ns(paste0("b_dom_", i)), sprintf("DAM %s: b", i), value = NA, min = 0, max = 1, step = 0.01) else tags$div())
         )
       })
 
@@ -176,9 +181,9 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
         return("Parámetros de proporción por DAM deben estar entre 0 y 1.")
       }
       if (identical(input$unidad_dam, "Personas")) {
-        if (is.na(input$r_dam) || is.na(input$b_dam)) return("Debe ingresar r y b para DAM cuando la unidad es Personas.")
-        if (input$r_dam <= 0) return("El valor de r DAM debe ser mayor que 0.")
-        if (input$b_dam < 0 || input$b_dam > 1) return("El valor de b DAM debe estar entre 0 y 1.")
+        if (any(is.na(v$r_dom)) || any(is.na(v$b_dom))) return("Debe ingresar r y b por cada DAM cuando la unidad es Personas.")
+        if (any(v$r_dom <= 0)) return("Todos los valores de r DAM deben ser mayores que 0.")
+        if (any(v$b_dom < 0 | v$b_dom > 1)) return("Todos los valores de b DAM deben estar entre 0 y 1.")
       }
       NULL
     })
@@ -197,7 +202,12 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
       if (identical(input$usa_dominios, "si")) {
         cat("Representatividad DAM: Sí\n")
         cat("Se guardaron parámetro, N, M y amplitud por dominio DAM.\n")
-        cat("Unidad DAM:", input$unidad_dam, "(r=", ifelse(input$unidad_dam == "Personas", input$r_dam, 1), ", b=", ifelse(input$unidad_dam == "Personas", input$b_dam, 1), ")\n")
+        cat("Unidad DAM:", input$unidad_dam, "\n")
+        if (input$unidad_dam == "Personas") {
+          v <- valores_dominios()
+          cat("r por DAM:", paste(v$r_dom, collapse = ", "), "\n")
+          cat("b por DAM:", paste(v$b_dom, collapse = ", "), "\n")
+        }
       } else {
         cat("Representatividad DAM: No\n")
         cat("Se usarán los parámetros nacionales en el módulo final.\n")
@@ -220,7 +230,9 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
             N_dom = numeric(0),
             M_dom = numeric(0),
             amplitud_dom = numeric(0),
-            delta_dom = numeric(0)
+            delta_dom = numeric(0),
+            r_dom = numeric(0),
+            b_dom = numeric(0)
           )
         }
 
@@ -237,8 +249,8 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
           tabla_dam = tabla_dam_completa(),
           m_vector = d$m_vector,
           unidad_dam = if (identical(input$usa_dominios, "si")) input$unidad_dam else "Hogares",
-          r_dam = if (identical(input$usa_dominios, "si") && identical(input$unidad_dam, "Personas")) input$r_dam else 1,
-          b_dam = if (identical(input$usa_dominios, "si") && identical(input$unidad_dam, "Personas")) input$b_dam else 1
+          r_dam = if (identical(input$usa_dominios, "si") && identical(input$unidad_dam, "Personas")) v$r_dom else rep(1, if (identical(input$usa_dominios, "si")) input$n_dominios else 1),
+          b_dam = if (identical(input$usa_dominios, "si") && identical(input$unidad_dam, "Personas")) v$b_dom else rep(1, if (identical(input$usa_dominios, "si")) input$n_dominios else 1)
         )
       })
     )
