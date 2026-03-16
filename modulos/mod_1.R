@@ -1,6 +1,6 @@
 
 # =========================================================
-# MÓDULO 1: Parámetro de interés
+# PASO 1: Parámetro de interés
 # Permite seleccionar:
 # - Media  -> pide x_barra y s
 # - Proporción -> pide p
@@ -12,7 +12,7 @@ mod_parametro_ui <- function(id) {
 
   shiny::tagList(
     shiny::wellPanel(
-      h3("1. Parámetro de interés"),
+      h3("Módulo 1. Parámetro de interés"),
 
       shiny::selectInput(
         inputId = ns("tipo_param"),

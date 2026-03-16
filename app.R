@@ -6,7 +6,6 @@ source("modulos/mod_1.R")
 source("modulos/mod_2.R")
 source("modulos/mod_3.R")
 source("modulos/mod_4.R")
-source("modulos/mod_5.R")
 source("modulos/mod_6.R")
 source("modulos/mod_7.R")
 source("modulos/mod_utils.R")
@@ -40,14 +39,13 @@ ui <- fluidPage(
       class = "tarjeta-paso",
       tabsetPanel(
         id = "wizard", selected = "paso1", type = "hidden",
-        tabPanel(title = "Paso 1", value = "paso1", mod_parametro_ui("param")),
-        tabPanel(title = "Paso 2", value = "paso2", mod_unidad_ui("unidad")),
-        tabPanel(title = "Paso 3", value = "paso3", mod_precision_ui("precision")),
-        tabPanel(title = "Paso 4", value = "paso4", mod_diseno_ui("diseno")),
-        tabPanel(title = "Paso 5", value = "paso5", mod_presupuesto_ui("presupuesto")),
-        tabPanel(title = "Paso 6", value = "paso6", mod_dominios_ui("dominios")),
-        tabPanel(title = "Paso 7", value = "paso7", mod_asignacion_ui("asignacion")),
-        tabPanel(title = "Paso 8", value = "paso8", mod_resultados_ui("resultados"))
+        tabPanel(title = "Módulo 1", value = "paso1", mod_parametro_ui("param")),
+        tabPanel(title = "Módulo 2", value = "paso2", mod_unidad_ui("unidad")),
+        tabPanel(title = "Módulo 3", value = "paso3", mod_precision_ui("precision")),
+        tabPanel(title = "Módulo 4", value = "paso4", mod_diseno_ui("diseno")),
+        tabPanel(title = "Módulo 5", value = "paso5", mod_dominios_ui("dominios")),
+        tabPanel(title = "Módulo 6", value = "paso6", mod_asignacion_ui("asignacion")),
+        tabPanel(title = "Módulo 7", value = "paso7", mod_resultados_ui("resultados"))
       ),
       div(
         class = "botones-nav",
@@ -59,22 +57,22 @@ ui <- fluidPage(
 )
 
 server <- function(input, output, session) {
-  pasos <- paste0("paso", 1:8)
+  pasos <- paste0("paso", 1:7)
   paso_actual <- reactiveVal("paso1")
 
   mod1 <- mod_parametro_server("param")
   mod2 <- mod_unidad_server("unidad")
   parametro_valor <- reactive({ p <- mod1$datos(); req(p); p$valor })
   mod3 <- mod_precision_server("precision", parametro = parametro_valor)
-  mod4 <- mod_diseno_server("diseno", unidad = mod2$datos)
-  mod5 <- mod_presupuesto_server("presupuesto")
-  mod6 <- mod_dominios_server("dominios")
-  n_dominios_rx <- reactive({ d <- mod6$datos(); req(d); d$n_dominios })
-  mod7 <- mod_asignacion_server("asignacion", n_dominios_rx = n_dominios_rx)
+  precision_datos <- reactive({ list(delta = mod3$amplitud() / 2, conf = mod3$conf()) })
+  mod4 <- mod_diseno_server("diseno", parametro = mod1$datos, precision = precision_datos, unidad = mod2$datos)
+  mod5 <- mod_dominios_server("dominios")
+  n_dominios_rx <- reactive({ d <- mod5$datos(); req(d); d$n_dominios })
+  mod6 <- mod_asignacion_server("asignacion", n_dominios_rx = n_dominios_rx)
 
   entrada_exportable <- reactive({
-    p1 <- mod1$datos(); p2 <- mod2$datos(); d4 <- mod4$datos(); b5 <- mod5$datos(); d6 <- mod6$datos(); a7 <- mod7$datos()
-    req(p1, p2, d4, b5, d6, a7)
+    p1 <- mod1$datos(); p2 <- mod2$datos(); d4 <- mod4$datos(); d5 <- mod5$datos(); a6 <- mod6$datos()
+    req(p1, p2, d4, d5, a6)
 
     list(
       tipo_param = p1$tipo,
@@ -85,19 +83,18 @@ server <- function(input, output, session) {
       r = p2$r,
       b = p2$b,
       amplitud = mod3$amplitud(),
+      delta = mod3$amplitud() / 2,
       conf = mod3$conf(),
       N = d4$N,
       M = d4$M,
-      m = d4$m,
+      m_sel = d4$m_sel,
       rho = d4$rho,
-      c_h = b5$c_h,
-      c_upm = b5$c_upm,
-      usa_dominios = d6$usa_dominios,
-      n_dominios = d6$n_dominios,
-      sim = d6$sim,
-      usa_area = a7$usa_area,
-      n_areas = a7$n_areas,
-      tabla_prop = a7$tabla_prop
+      usa_dominios = d5$usa_dominios,
+      n_dominios = d5$n_dominios,
+
+      usa_area = a6$usa_area,
+      n_areas = a6$n_areas,
+      tabla_prop = a6$tabla_prop
     )
   })
 
@@ -106,14 +103,13 @@ server <- function(input, output, session) {
   output$titulo_paso <- renderText({
     switch(
       paso_actual(),
-      "paso1" = "Paso 1 de 8: Seleccionar parámetro de interés",
-      "paso2" = "Paso 2 de 8: Unidad de análisis",
-      "paso3" = "Paso 3 de 8: Precisión (amplitud + confianza)",
-      "paso4" = "Paso 4 de 8: Parámetros de diseño",
-      "paso5" = "Paso 5 de 8: Parámetros de presupuesto",
-      "paso6" = "Paso 6 de 8: Dominios y SIM",
-      "paso7" = "Paso 7 de 8: Asignación por área (IPFP)",
-      "paso8" = "Paso 8 de 8: Tablas de muestreo y exportación"
+      "paso1" = "Módulo 1 de 7: Seleccionar parámetro de interés",
+      "paso2" = "Módulo 2 de 7: Unidad de análisis",
+      "paso3" = "Módulo 3 de 7: Precisión (amplitud + confianza)",
+      "paso4" = "Módulo 4 de 7: Diseño, MRB y vector de m",
+      "paso5" = "Módulo 5 de 7: Dominios DAM",
+      "paso6" = "Módulo 6 de 7: Asignación por área (IPFP)",
+      "paso7" = "Módulo 7 de 7: Tablas de muestreo y exportación"
     )
   })
 
@@ -126,8 +122,7 @@ server <- function(input, output, session) {
       "paso4" = is.null(mod4$validacion()),
       "paso5" = is.null(mod5$validacion()),
       "paso6" = is.null(mod6$validacion()),
-      "paso7" = is.null(mod7$validacion()),
-      "paso8" = TRUE
+      "paso7" = TRUE
     )
   })
 
@@ -140,8 +135,7 @@ server <- function(input, output, session) {
       "paso4" = mod4$validacion(),
       "paso5" = mod5$validacion(),
       "paso6" = mod6$validacion(),
-      "paso7" = mod7$validacion(),
-      "paso8" = NULL
+      "paso7" = NULL
     )
   })
 

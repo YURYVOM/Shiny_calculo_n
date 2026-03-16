@@ -1,5 +1,5 @@
 # =========================================================
-# MÓDULO 3: Definir precisión
+# PASO 3: Definir precisión
 # Ingresa amplitud del IC y nivel de confianza (sin alpha explícito)
 # Calcula EE, ME, CV y MR
 # =========================================================
@@ -9,7 +9,7 @@ mod_precision_ui <- function(id) {
 
   shiny::tagList(
     shiny::wellPanel(
-      h3("3. Definir precisión"),
+      h3("Módulo 3. Definir precisión"),
       p("Ingrese amplitud y nivel de confianza. El valor de alpha se calcula automáticamente (alpha = 1 - confianza)."),
 
       shiny::numericInput(

@@ -1,5 +1,5 @@
 # =========================================================
-# MÓDULO 7: Asignación por área (IPFP aproximada)
+# PASO 7: Asignación por área (IPFP aproximada)
 # =========================================================
 
 mod_asignacion_ui <- function(id) {
@@ -7,7 +7,7 @@ mod_asignacion_ui <- function(id) {
 
   tagList(
     wellPanel(
-      h3("7. Asignación por área"),
+      h3("Módulo 6. Asignación por área"),
       radioButtons(
         ns("usa_area"),
         "¿Desea hacer asignación por área?",
