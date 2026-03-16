@@ -41,17 +41,23 @@ mod_asignacion_ui <- function(id) {
 mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
   moduleServer(id, function(input, output, session) {
 
+    valor_num_input <- function(id) {
+      v <- input[[id]]
+      if (is.null(v) || length(v) == 0) return(NA_real_)
+      as.numeric(v)
+    }
+
     valores_dominios <- reactive({
       p <- parametro(); req(p)
       n <- input$n_dominios
       req(!is.null(n), n >= 2)
 
-      param_dom <- vapply(seq_len(n), function(i) input[[paste0("param_dom_", i)]], numeric(1))
-      N_dom <- vapply(seq_len(n), function(i) input[[paste0("N_dom_", i)]], numeric(1))
-      M_dom <- vapply(seq_len(n), function(i) input[[paste0("M_dom_", i)]], numeric(1))
+      param_dom <- vapply(seq_len(n), function(i) valor_num_input(paste0("param_dom_", i)), numeric(1))
+      N_dom <- vapply(seq_len(n), function(i) valor_num_input(paste0("N_dom_", i)), numeric(1))
+      M_dom <- vapply(seq_len(n), function(i) valor_num_input(paste0("M_dom_", i)), numeric(1))
 
       if (p$tipo == "Media") {
-        sd_dom <- vapply(seq_len(n), function(i) input[[paste0("sd_dom_", i)]], numeric(1))
+        sd_dom <- vapply(seq_len(n), function(i) valor_num_input(paste0("sd_dom_", i)), numeric(1))
       } else {
         sd_dom <- numeric(0)
       }

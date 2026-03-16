@@ -6,7 +6,7 @@ source("modulos/mod_1.R")
 source("modulos/mod_2.R")
 source("modulos/mod_3.R")
 source("modulos/mod_4.R")
-source("modulos/mod_6.R")
+source("modulos/mod_5.R")
 source("modulos/mod_7.R")
 source("modulos/mod_utils.R")
 source("modulos/mod_8.R")
@@ -43,7 +43,7 @@ ui <- fluidPage(
         tabPanel(title = "Módulo 2", value = "paso2", mod_unidad_ui("unidad")),
         tabPanel(title = "Módulo 3", value = "paso3", mod_precision_ui("precision")),
         tabPanel(title = "Módulo 4", value = "paso4", mod_diseno_ui("diseno")),
-        tabPanel(title = "Módulo 5", value = "paso5", mod_dominios_ui("dominios")),
+        tabPanel(title = "Módulo 5", value = "paso5", mod_presupuesto_ui("muestra_nacional")),
         tabPanel(title = "Módulo 6", value = "paso6", mod_asignacion_ui("asignacion")),
         tabPanel(title = "Módulo 7", value = "paso7", mod_resultados_ui("resultados"))
       ),
@@ -66,7 +66,7 @@ server <- function(input, output, session) {
   mod3 <- mod_precision_server("precision", parametro = parametro_valor)
   precision_datos <- reactive({ list(delta = mod3$amplitud() / 2, conf = mod3$conf()) })
   mod4 <- mod_diseno_server("diseno")
-  mod5 <- mod_dominios_server("dominios", parametro = mod1$datos, precision = precision_datos, unidad = mod2$datos, diseno = mod4$datos)
+  mod5 <- mod_presupuesto_server("muestra_nacional", parametro = mod1$datos, precision = precision_datos, unidad = mod2$datos, diseno = mod4$datos)
   mod6 <- mod_asignacion_server("asignacion", parametro = mod1$datos, precision = precision_datos, unidad = mod2$datos, diseno = mod4$datos)
 
   entrada_exportable <- reactive({
