@@ -1,5 +1,5 @@
 # =========================================================
-# PASO 5: Cálculo de tamaño de muestra
+# Módulo 5: Cálculo de tamaño de muestra
 # =========================================================
 
 mod_presupuesto_ui <- function(id) {
@@ -7,7 +7,7 @@ mod_presupuesto_ui <- function(id) {
 
   tagList(
     wellPanel(
-      h3("Paso 5. Tamaño de muestra"),
+      h3("Módulo 5. Tamaño de muestra"),
       p("En este paso no se selecciona m: se calcula y muestra la tabla para todos los valores de m."),
       h4("Salida de la función (variables originales)"),
       dataTableOutput(ns("tabla_muestreo"))
@@ -36,7 +36,15 @@ mod_presupuesto_server <- function(id, parametro, precision, unidad, diseno) {
           HouseholdsInSample = n_hogares,
           stringsAsFactors = FALSE
         )
-      }))
+      }
+
+      out <- as.data.frame(out)
+
+      if ("HouseholdsPerPSU" %in% names(out)) {
+        names(out)[names(out) == "HouseholdsPerPSU"] <- "m"
+      }
+
+      out
     })
 
     tabla_muestreo <- reactive({
