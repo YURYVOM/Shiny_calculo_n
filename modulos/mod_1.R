@@ -87,7 +87,6 @@ mod_parametro_server <- function(id) {
     # Salida reactiva principal
     # -----------------------------
     parametro <- reactive({
-      req(validacion())
       validate(need(is.null(validacion()), validacion()))
 
       if (input$tipo_param == "Media") {
