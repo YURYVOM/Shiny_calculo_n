@@ -67,11 +67,11 @@ server <- function(input, output, session) {
   precision_datos <- reactive({ list(delta = mod3$amplitud() / 2, conf = mod3$conf()) })
   mod4 <- mod_diseno_server("diseno")
   mod5 <- mod_dominios_server("dominios", parametro = mod1$datos, precision = precision_datos, unidad = mod2$datos, diseno = mod4$datos)
-  mod6 <- mod_asignacion_server("asignacion", dominios_datos = mod5$datos, parametro = mod1$datos)
+  mod6 <- mod_asignacion_server("asignacion", parametro = mod1$datos, precision = precision_datos, unidad = mod2$datos, diseno = mod4$datos)
 
   entrada_exportable <- reactive({
-    p1 <- mod1$datos(); p2 <- mod2$datos(); d4 <- mod4$datos(); d5 <- mod5$datos(); a6 <- mod6$datos()
-    req(p1, p2, d4, d5, a6)
+    p1 <- mod1$datos(); p2 <- mod2$datos(); d4 <- mod4$datos(); d5 <- mod5$datos(); d6 <- mod6$datos()
+    req(p1, p2, d4, d5, d6)
 
     list(
       tipo_param = p1$tipo,
@@ -87,20 +87,17 @@ server <- function(input, output, session) {
       N = d4$N,
       M = d4$M,
       rho = d4$rho,
-      usa_dominios = a6$usa_dominios,
-      n_dominios = a6$n_dominios,
-      m_sel = a6$lm_sel,
-      param_dom = a6$param_dom,
-      sd_dom = a6$sd_dom,
-      N_dom = a6$N_dom,
-
-      usa_area = a6$usa_area,
-      n_areas = a6$n_areas,
-      tabla_prop = a6$tabla_prop
+      usa_dominios = d6$usa_dominios,
+      n_dominios = d6$n_dominios,
+      param_dom = d6$param_dom,
+      sd_dom = d6$sd_dom,
+      N_dom = d6$N_dom,
+      M_dom = d6$M_dom,
+      m_vector = d6$m_vector
     )
   })
 
-  mod_resultados_server("resultados", entrada = entrada_exportable)
+  mod_resultados_server("resultados", entrada_base = entrada_exportable)
 
   output$titulo_paso <- renderText({
     switch(
@@ -110,8 +107,8 @@ server <- function(input, output, session) {
       "paso3" = "Módulo 3 de 7: Precisión (amplitud + confianza)",
       "paso4" = "Módulo 4 de 7: Parámetros de diseño",
       "paso5" = "Módulo 5 de 7: Cálculo de tamaño de muestra (nacional)",
-      "paso6" = "Módulo 6 de 7: Representatividad DAM y selección LM para AM",
-      "paso7" = "Módulo 7 de 7: Tablas de muestreo y exportación"
+      "paso6" = "Módulo 6 de 7: Representatividad DAM (ingreso por dominio)",
+      "paso7" = "Módulo 7 de 7: Selección de mejor m, área y resultados"
     )
   })
 
