@@ -7,9 +7,9 @@ source("modulos/mod_2.R")
 source("modulos/mod_3.R")
 source("modulos/mod_4.R")
 source("modulos/mod_5.R")
+source("modulos/mod_6.R")
 source("modulos/mod_7.R")
 source("modulos/mod_utils.R")
-source("modulos/mod_8.R")
 
 ui <- fluidPage(
   theme = bs_theme(
