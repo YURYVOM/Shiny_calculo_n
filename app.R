@@ -5,86 +5,51 @@ library(bslib)
 source("modulos/mod_1.R")
 source("modulos/mod_2.R")
 source("modulos/mod_3.R")
+source("modulos/mod_4.R")
+source("modulos/mod_6.R")
+source("modulos/mod_7.R")
+source("modulos/mod_utils.R")
+source("modulos/mod_8.R")
 
 ui <- fluidPage(
   theme = bs_theme(
     version = 5,
-    bg = "#eaf2ff",
+    bg = "#eef4ff",
     fg = "#1f2d3d",
-    primary = "#1565c0",
+    primary = "#2057b3",
+    secondary = "#8fb3f4",
     base_font = font_google("Nunito")
   ),
-
   tags$head(
     tags$style(HTML("
-      body {
-        background: #dfeaf8;
-      }
-      .contenedor-principal {
-        max-width: 900px;
-        margin: 25px auto;
-      }
-      .tarjeta-paso {
-        background: white;
-        border-radius: 20px;
-        padding: 30px;
-        box-shadow: 0 6px 18px rgba(0,0,0,0.08);
-      }
-      .titulo-app {
-        text-align: center;
-        color: #0d47a1;
-        font-weight: 800;
-        margin-bottom: 10px;
-      }
-      .subtitulo-app {
-        text-align: center;
-        color: #0d47a1;
-        font-weight: 700;
-        margin-bottom: 25px;
-      }
-      .botones-nav {
-        display: flex;
-        justify-content: space-between;
-        margin-top: 20px;
-      }
+      body { background: linear-gradient(180deg, #edf3ff 0%, #dce9ff 100%); }
+      .contenedor-principal { max-width: 1060px; margin: 24px auto; }
+      .tarjeta-paso { background: #fff; border-radius: 22px; padding: 28px; box-shadow: 0 10px 24px rgba(20,58,128,.12); border: 1px solid #d5e1fb; }
+      .titulo-app { text-align:center; color:#0d3f97; font-weight:900; margin-bottom:4px; }
+      .subtitulo-app { text-align:center; color:#375d9d; font-size:1.05rem; font-weight:700; margin-bottom:22px; }
+      .botones-nav { display:flex; justify-content:space-between; gap:12px; margin-top:20px; }
+      .well { background:#f7faff; border:1px solid #d6e3fd; border-radius:16px; }
     "))
   ),
-
   div(
     class = "contenedor-principal",
     h1("Calculadora de tamaño de muestra", class = "titulo-app"),
     div(class = "subtitulo-app", textOutput("titulo_paso")),
-
     div(
       class = "tarjeta-paso",
-
       tabsetPanel(
-        id = "wizard",
-        selected = "paso1",
-        type = "hidden",
-
-        tabPanel(
-          title = "Paso 1",
-          value = "paso1",
-          mod_parametro_ui("param")
-        ),
-
-        tabPanel(
-          title = "Paso 2",
-          value = "paso2",
-          mod_unidad_ui("unidad")
-        ),
-
-        tabPanel(
-          title = "Paso 3",
-          value = "paso3",
-          mod_precision_ui("precision")
-        )
+        id = "wizard", selected = "paso1", type = "hidden",
+        tabPanel(title = "Módulo 1", value = "paso1", mod_parametro_ui("param")),
+        tabPanel(title = "Módulo 2", value = "paso2", mod_unidad_ui("unidad")),
+        tabPanel(title = "Módulo 3", value = "paso3", mod_precision_ui("precision")),
+        tabPanel(title = "Módulo 4", value = "paso4", mod_diseno_ui("diseno")),
+        tabPanel(title = "Módulo 5", value = "paso5", mod_dominios_ui("dominios")),
+        tabPanel(title = "Módulo 6", value = "paso6", mod_asignacion_ui("asignacion")),
+        tabPanel(title = "Módulo 7", value = "paso7", mod_resultados_ui("resultados"))
       ),
-
       div(
         class = "botones-nav",
-        actionButton("anterior", "← Atrás"),
+        actionButton("anterior", "← Atrás", class = "btn btn-outline-primary"),
         actionButton("siguiente", "Siguiente →", class = "btn btn-primary")
       )
     )
@@ -92,166 +57,109 @@ ui <- fluidPage(
 )
 
 server <- function(input, output, session) {
+  pasos <- paste0("paso", 1:7)
+  paso_actual <- reactiveVal("paso1")
 
   mod1 <- mod_parametro_server("param")
   mod2 <- mod_unidad_server("unidad")
+  parametro_valor <- reactive({ p <- mod1$datos(); req(p); p$valor })
+  mod3 <- mod_precision_server("precision", parametro = parametro_valor)
+  precision_datos <- reactive({ list(delta = mod3$amplitud() / 2, conf = mod3$conf()) })
+  mod4 <- mod_diseno_server("diseno", parametro = mod1$datos, precision = precision_datos, unidad = mod2$datos)
+  mod5 <- mod_dominios_server("dominios")
+  n_dominios_rx <- reactive({ d <- mod5$datos(); req(d); d$n_dominios })
+  mod6 <- mod_asignacion_server("asignacion", n_dominios_rx = n_dominios_rx)
 
-  mod3 <- mod_precision_server(
-    "precision",
-    parametro = reactive({
-      tipo <- input[["param-tipo_param"]]
+  entrada_exportable <- reactive({
+    p1 <- mod1$datos(); p2 <- mod2$datos(); d4 <- mod4$datos(); d5 <- mod5$datos(); a6 <- mod6$datos()
+    req(p1, p2, d4, d5, a6)
 
-      if (is.null(tipo)) return(NULL)
+    list(
+      tipo_param = p1$tipo,
+      xbarra = p1$xbarra,
+      s = p1$s,
+      p = p1$p,
+      unidad = p2$unidad,
+      r = p2$r,
+      b = p2$b,
+      amplitud = mod3$amplitud(),
+      delta = mod3$amplitud() / 2,
+      conf = mod3$conf(),
+      N = d4$N,
+      M = d4$M,
+      m_sel = d4$m_sel,
+      rho = d4$rho,
+      usa_dominios = d5$usa_dominios,
+      n_dominios = d5$n_dominios,
 
-      if (tipo == "Media") {
-        input[["param-xbarra"]]
-      } else if (tipo == "Proporción") {
-        input[["param-p"]]
-      } else {
-        NULL
-      }
-    })
-  )
+      usa_area = a6$usa_area,
+      n_areas = a6$n_areas,
+      tabla_prop = a6$tabla_prop
+    )
+  })
 
-  paso_actual <- reactiveVal("paso1")
+  mod_resultados_server("resultados", entrada = entrada_exportable)
 
   output$titulo_paso <- renderText({
-    if (paso_actual() == "paso1") {
-      "Paso 1 de 3: Parámetro de interés"
-    } else if (paso_actual() == "paso2") {
-      "Paso 2 de 3: Unidad de análisis"
-    } else {
-      "Paso 3 de 3: Definir precisión"
-    }
+    switch(
+      paso_actual(),
+      "paso1" = "Módulo 1 de 7: Seleccionar parámetro de interés",
+      "paso2" = "Módulo 2 de 7: Unidad de análisis",
+      "paso3" = "Módulo 3 de 7: Precisión (amplitud + confianza)",
+      "paso4" = "Módulo 4 de 7: Diseño, MRB y vector de m",
+      "paso5" = "Módulo 5 de 7: Dominios DAM",
+      "paso6" = "Módulo 6 de 7: Asignación por área (IPFP)",
+      "paso7" = "Módulo 7 de 7: Tablas de muestreo y exportación"
+    )
   })
 
-  # -----------------------------
-  # Validación explícita paso 1
-  # -----------------------------
-  paso1_valido <- reactive({
-    tipo <- input[["param-tipo_param"]]
-
-    if (is.null(tipo)) return(FALSE)
-
-    if (tipo == "Media") {
-      xbarra <- input[["param-xbarra"]]
-      s      <- input[["param-s"]]
-
-      return(
-        !is.null(xbarra) && !is.na(xbarra) &&
-          !is.null(s) && !is.na(s) &&
-          s >= 0
-      )
-    }
-
-    if (tipo == "Proporción") {
-      p <- input[["param-p"]]
-
-      return(
-        !is.null(p) && !is.na(p) &&
-          p >= 0 && p <= 1
-      )
-    }
-
-    FALSE
+  es_paso_valido <- reactive({
+    switch(
+      paso_actual(),
+      "paso1" = is.null(mod1$validacion()),
+      "paso2" = is.null(mod2$validacion()),
+      "paso3" = is.null(mod3$validacion()),
+      "paso4" = is.null(mod4$validacion()),
+      "paso5" = is.null(mod5$validacion()),
+      "paso6" = is.null(mod6$validacion()),
+      "paso7" = TRUE
+    )
   })
 
-  # -----------------------------
-  # Validación explícita paso 2
-  # -----------------------------
-  paso2_valido <- reactive({
-    unidad <- input[["unidad-unidad"]]
-    r      <- input[["unidad-r"]]
-    b      <- input[["unidad-b"]]
-
-    !is.null(unidad) && unidad != "" &&
-      !is.null(r) && !is.na(r) && r > 0 &&
-      !is.null(b) && !is.na(b) && b >= 0 && b <= 1
+  mensaje_error <- reactive({
+    switch(
+      paso_actual(),
+      "paso1" = mod1$validacion(),
+      "paso2" = mod2$validacion(),
+      "paso3" = mod3$validacion(),
+      "paso4" = mod4$validacion(),
+      "paso5" = mod5$validacion(),
+      "paso6" = mod6$validacion(),
+      "paso7" = NULL
+    )
   })
 
-  # -----------------------------
-  # Validación explícita paso 3
-  # -----------------------------
-  paso3_valido <- reactive({
-    amplitud <- input[["precision-amplitud"]]
-    conf     <- input[["precision-conf"]]
-
-    !is.null(amplitud) && !is.na(amplitud) &&
-      amplitud > 0 &&
-      !is.null(conf) && !is.na(conf)
-  })
-
-  # -----------------------------
-  # Botón siguiente
-  # -----------------------------
   observeEvent(input$siguiente, {
-
-    if (paso_actual() == "paso1") {
-
-      if (!isTRUE(paso1_valido())) {
-        showNotification(
-          "Complete correctamente el paso 1 para continuar.",
-          type = "warning",
-          duration = 3
-        )
-        return()
-      }
-
-      paso_actual("paso2")
-      updateTabsetPanel(session, inputId = "wizard", selected = "paso2")
+    idx <- match(paso_actual(), pasos)
+    if (!isTRUE(es_paso_valido())) {
+      showNotification(paste("Revise", paso_actual(), ":", mensaje_error()), type = "warning", duration = 4)
       return()
     }
-
-    if (paso_actual() == "paso2") {
-
-      if (!isTRUE(paso2_valido())) {
-        showNotification(
-          "Complete correctamente el paso 2 para continuar.",
-          type = "warning",
-          duration = 3
-        )
-        return()
-      }
-
-      paso_actual("paso3")
-      updateTabsetPanel(session, inputId = "wizard", selected = "paso3")
-      return()
-    }
-
-    if (paso_actual() == "paso3") {
-
-      if (!isTRUE(paso3_valido())) {
-        showNotification(
-          "Complete correctamente el paso 3.",
-          type = "warning",
-          duration = 3
-        )
-        return()
-      }
-
-      showNotification(
-        "Paso 3 completado correctamente.",
-        type = "message",
-        duration = 3
-      )
+    if (idx < length(pasos)) {
+      nxt <- pasos[idx + 1]
+      paso_actual(nxt)
+      updateTabsetPanel(session, "wizard", selected = nxt)
+    } else {
+      showNotification("Proceso completado. Puede exportar el script de R.", type = "message")
     }
   })
 
-  # -----------------------------
-  # Botón anterior
-  # -----------------------------
   observeEvent(input$anterior, {
-
-    if (paso_actual() == "paso3") {
-      paso_actual("paso2")
-      updateTabsetPanel(session, inputId = "wizard", selected = "paso2")
-      return()
-    }
-
-    if (paso_actual() == "paso2") {
-      paso_actual("paso1")
-      updateTabsetPanel(session, inputId = "wizard", selected = "paso1")
-      return()
+    idx <- match(paso_actual(), pasos)
+    if (idx > 1) {
+      prv <- pasos[idx - 1]
+      paso_actual(prv)
+      updateTabsetPanel(session, "wizard", selected = prv)
     }
   })
 }
