@@ -5,28 +5,38 @@
 mod_presupuesto_ui <- function(id) {
   ns <- shiny::NS(id)
 
-  tagList(
-    wellPanel(
-      h3("Módulo 5. Tamaño de muestra"),
+  shiny::tagList(
+    shiny::wellPanel(
+      h3("Paso 5. Tamaño de muestra"),
       p("En este paso no se selecciona m: se calcula y muestra la tabla para todos los valores de m."),
       h4("Salida de la función (variables originales)"),
-      dataTableOutput(ns("tabla_muestreo"))
+      shiny::dataTableOutput(ns("tabla_muestreo"))
     )
   )
 }
 
 mod_presupuesto_server <- function(id, parametro, precision, unidad, diseno) {
-  moduleServer(id, function(input, output, session) {
+  shiny::moduleServer(id, function(input, output, session) {
 
-    tabla_funcion <- reactive({
-      p <- parametro(); pr <- precision(); d <- diseno()
-      req(p, pr, d)
+    tabla_funcion <- shiny::reactive({
+      p <- parametro()
+      pr <- precision()
+      d <- diseno()
+      shiny::req(p, pr, d)
 
       do.call(rbind, lapply(d$m_vector, function(m_i) {
         n_hogares <- if (p$tipo == "Media") {
-          ss4HHSm(N = d$N, M = d$M, rho = d$rho, mu = p$xbarra, sigma = p$s, delta = pr$delta, conf = pr$conf, m = m_i)
+          ss4HHSm(
+            N = d$N, M = d$M, rho = d$rho,
+            mu = p$xbarra, sigma = p$s,
+            delta = pr$delta, conf = pr$conf, m = m_i
+          )
         } else {
-          ss4HHSp(N = d$N, M = d$M, rho = d$rho, p = p$p, delta = pr$delta, conf = pr$conf, m = m_i)
+          ss4HHSp(
+            N = d$N, M = d$M, rho = d$rho,
+            p = p$p,
+            delta = pr$delta, conf = pr$conf, m = m_i
+          )
         }
 
         data.frame(
@@ -56,25 +66,22 @@ mod_presupuesto_server <- function(id, parametro, precision, unidad, diseno) {
       )
     })
 
-    validacion <- reactive({
+    validacion <- shiny::reactive({
       tb <- tabla_funcion()
       if (is.null(tb) || nrow(tb) == 0) return("No hay resultados para mostrar.")
       NULL
     })
 
-    output$tabla_muestreo <- renderDataTable({
-      validate(need(is.null(validacion()), validacion()))
+    output$tabla_muestreo <- shiny::renderDataTable({
+      shiny::validate(shiny::need(is.null(validacion()), validacion()))
       tabla_funcion()
     }, options = list(pageLength = 10, scrollX = TRUE, autoWidth = TRUE))
 
-
     list(
       validacion = validacion,
-      datos = reactive({
-        validate(need(is.null(validacion()), validacion()))
-        list(
-          tabla_muestreo = tabla_muestreo()
-        )
+      datos = shiny::reactive({
+        shiny::validate(shiny::need(is.null(validacion()), validacion()))
+        list(tabla_muestreo = tabla_funcion())
       })
     )
   })
