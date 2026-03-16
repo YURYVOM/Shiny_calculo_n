@@ -1,5 +1,5 @@
 # =========================================================
-# MÓDULO 7: Selección del mejor m, asignación por área y exportación
+# MÓDULO 7: Resultados finales, asignación por área y exportación
 # =========================================================
 
 mod_resultados_ui <- function(id) {
@@ -7,8 +7,8 @@ mod_resultados_ui <- function(id) {
 
   tagList(
     wellPanel(
-      h3("Módulo 7. Selección de m y resultados finales"),
-      selectInput(ns("m_sel"), "Seleccione su mejor m:", choices = character(0)),
+      h3("Módulo 7. Resultados finales"),
+      uiOutput(ns("ui_selector_m")),
       radioButtons(
         ns("usa_area"),
         "¿Desea hacer asignación por área?",
@@ -38,11 +38,23 @@ mod_resultados_ui <- function(id) {
 mod_resultados_server <- function(id, entrada_base) {
   moduleServer(id, function(input, output, session) {
 
+    output$ui_selector_m <- renderUI({
+      d <- entrada_base(); req(d)
+
+      if (isTRUE(d$usa_dominios)) {
+        selectInput(session$ns("m_sel"), "Seleccione su mejor m:", choices = as.character(unique(d$m_vector)))
+      } else {
+        tags$p(strong(paste("m nacional seleccionado en el módulo anterior:", d$m_sel_nacional)))
+      }
+    })
+
     observe({
       d <- entrada_base(); req(d)
-      choices <- as.character(unique(d$m_vector))
-      selected <- if (!is.null(input$m_sel) && input$m_sel %in% choices) input$m_sel else choices[1]
-      updateSelectInput(session, "m_sel", choices = choices, selected = selected)
+      if (isTRUE(d$usa_dominios)) {
+        choices <- as.character(unique(d$m_vector))
+        selected <- if (!is.null(input$m_sel) && input$m_sel %in% choices) input$m_sel else choices[1]
+        updateSelectInput(session, "m_sel", choices = choices, selected = selected)
+      }
     })
 
     tabla_matrix <- reactive({
@@ -53,7 +65,11 @@ mod_resultados_server <- function(id, entrada_base) {
 
     validacion <- reactive({
       d <- entrada_base(); req(d)
-      if (is.null(input$m_sel) || !(input$m_sel %in% as.character(unique(d$m_vector)))) return("Seleccione un m válido.")
+      if (isTRUE(d$usa_dominios)) {
+        if (is.null(input$m_sel) || !(input$m_sel %in% as.character(unique(d$m_vector)))) return("Seleccione un m válido.")
+      } else if (is.null(d$m_sel_nacional) || is.na(d$m_sel_nacional) || !(as.character(d$m_sel_nacional) %in% as.character(unique(d$m_vector)))) {
+        return("No hay un m nacional válido seleccionado desde el módulo 6.")
+      }
 
       if (identical(input$usa_area, "si")) {
         if (is.na(input$n_areas) || input$n_areas < 2) return("Número de áreas debe ser >= 2.")
@@ -70,7 +86,7 @@ mod_resultados_server <- function(id, entrada_base) {
     calc <- reactive({
       validate(need(is.null(validacion()), validacion()))
       d <- entrada_base(); req(d)
-      m_sel <- as.numeric(input$m_sel)
+      m_sel <- if (isTRUE(d$usa_dominios)) as.numeric(input$m_sel) else as.numeric(d$m_sel_nacional)
 
       if (isTRUE(d$usa_dominios)) {
         if (d$tipo_param == "Media") {
@@ -128,7 +144,7 @@ mod_resultados_server <- function(id, entrada_base) {
       datos = reactive({
         validate(need(is.null(validacion()), validacion()))
         list(
-          m_sel = as.numeric(input$m_sel),
+          m_sel = calc()$m_sel,
           usa_area = identical(input$usa_area, "si"),
           n_areas = if (identical(input$usa_area, "si")) input$n_areas else 1,
           tabla_prop = if (identical(input$usa_area, "si")) tabla_matrix() else NULL

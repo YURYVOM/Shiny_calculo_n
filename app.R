@@ -93,7 +93,8 @@ server <- function(input, output, session) {
       sd_dom = d6$sd_dom,
       N_dom = d6$N_dom,
       M_dom = d6$M_dom,
-      m_vector = d6$m_vector
+      m_vector = d6$m_vector,
+      m_sel_nacional = d6$m_sel_nacional
     )
   })
 
@@ -108,7 +109,7 @@ server <- function(input, output, session) {
       "paso4" = "Módulo 4 de 7: Parámetros de diseño",
       "paso5" = "Módulo 5 de 7: Cálculo de tamaño de muestra (nacional)",
       "paso6" = "Módulo 6 de 7: Representatividad DAM (ingreso por dominio)",
-      "paso7" = "Módulo 7 de 7: Selección de mejor m, área y resultados"
+      "paso7" = "Módulo 7 de 7: Resultados finales, área y exportación"
     )
   })
 
