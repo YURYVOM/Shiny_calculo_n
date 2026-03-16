@@ -1,194 +1,153 @@
 # =========================================================
-# MÓDULO 6: Representatividad DAM (ingreso por dominio + selección nacional)
+# MÓDULO 7: Resultados finales, asignación por área y exportación
 # =========================================================
 
-mod_asignacion_ui <- function(id) {
+mod_resultados_ui <- function(id) {
   ns <- shiny::NS(id)
 
   tagList(
     wellPanel(
-      h3("Módulo 6. Representatividad por DAM"),
-      p("Paso 1: indique si desea representatividad por DAM."),
+      h3("Módulo 7. Resultados finales"),
+      uiOutput(ns("ui_selector_m")),
       radioButtons(
-        ns("usa_dominios"),
-        "¿Desea representatividad por DAM?",
+        ns("usa_area"),
+        "¿Desea hacer asignación por área?",
         choices = c("No" = "no", "Sí" = "si"),
         selected = "no",
         inline = TRUE
       ),
       conditionalPanel(
-        condition = sprintf("input['%s'] == 'si'", ns("usa_dominios")),
-        p("Paso 2: ingrese los valores por dominio DAM."),
-        numericInput(ns("n_dominios"), "Número de dominios DAM:", value = 2, min = 2),
-        uiOutput(ns("dominios_ui")),
-        fluidRow(
-          column(6, selectInput(ns("dam_filtro"), "Filtro DAM para visualizar:", choices = character(0))),
-          column(6, selectInput(ns("m_filtro"), "Filtro m para visualizar:", choices = character(0)))
-        )
+        condition = sprintf("input['%s'] == 'si'", ns("usa_area")),
+        numericInput(ns("n_areas"), "Número de áreas:", value = 2, min = 2),
+        textAreaInput(ns("tabla_prop"), "Tabla cruzada de proporciones censales (CSV). Debe sumar 1.", rows = 6, placeholder = "0.10,0.15\n0.20,0.25\n0.10,0.20")
       ),
-      conditionalPanel(
-        condition = sprintf("input['%s'] == 'no'", ns("usa_dominios")),
-        p("Paso 2: seleccione el m nacional que más le gustó."),
-        selectInput(ns("m_nacional"), "Seleccione m nacional:", choices = character(0))
-      ),
-      h4("Resultados por DAM y por m (salida de función)"),
-      tableOutput(ns("tabla_dam")),
-      verbatimTextOutput(ns("resumen"))
+      h4("Resumen final"),
+      tableOutput(ns("tabla_resultados")),
+      h4("Resultados por DAM (m seleccionado)"),
+      tableOutput(ns("tabla_dominios")),
+      h4("Asignación por área"),
+      tableOutput(ns("tabla_area")),
+      br(),
+      h4("Código R reproducible"),
+      tags$pre(style = "max-height: 260px; overflow-y: auto;", textOutput(ns("codigo_r"))),
+      downloadButton(ns("descargar_codigo"), "Descargar código R", class = "btn btn-success")
     )
   )
 }
 
-mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
+mod_resultados_server <- function(id, entrada_base) {
   moduleServer(id, function(input, output, session) {
 
-    valor_num_input <- function(id) {
-      v <- input[[id]]
-      if (is.null(v) || length(v) == 0) return(NA_real_)
-      as.numeric(v)
-    }
+    output$ui_selector_m <- renderUI({
+      d <- entrada_base(); req(d)
 
-    valores_dominios <- reactive({
-      p <- parametro(); req(p)
-      n <- input$n_dominios
-      req(!is.null(n), n >= 2)
-
-      param_dom <- vapply(seq_len(n), function(i) valor_num_input(paste0("param_dom_", i)), numeric(1))
-      N_dom <- vapply(seq_len(n), function(i) valor_num_input(paste0("N_dom_", i)), numeric(1))
-      M_dom <- vapply(seq_len(n), function(i) valor_num_input(paste0("M_dom_", i)), numeric(1))
-
-      if (p$tipo == "Media") {
-        sd_dom <- vapply(seq_len(n), function(i) valor_num_input(paste0("sd_dom_", i)), numeric(1))
+      if (isTRUE(d$usa_dominios)) {
+        selectInput(session$ns("m_sel"), "Seleccione su mejor m:", choices = as.character(unique(d$m_vector)))
       } else {
-        sd_dom <- numeric(0)
+        tags$p(strong(paste("m nacional seleccionado en el módulo anterior:", d$m_sel_nacional)))
       }
-
-      list(param_dom = param_dom, sd_dom = sd_dom, N_dom = N_dom, M_dom = M_dom)
-    })
-
-    output$dominios_ui <- renderUI({
-      p <- parametro(); req(p)
-      n <- input$n_dominios
-      req(!is.null(n), n >= 2)
-
-      filas <- lapply(seq_len(n), function(i) {
-        fluidRow(
-          column(3, numericInput(session$ns(paste0("param_dom_", i)), sprintf("DAM %s: parámetro", i), value = NA, min = if (p$tipo == "Proporción") 0 else NA, max = if (p$tipo == "Proporción") 1 else NA)),
-          column(3, if (p$tipo == "Media") numericInput(session$ns(paste0("sd_dom_", i)), sprintf("DAM %s: desviación", i), value = NA, min = 0) else tags$div()),
-          column(3, numericInput(session$ns(paste0("N_dom_", i)), sprintf("DAM %s: N", i), value = NA, min = 1)),
-          column(3, numericInput(session$ns(paste0("M_dom_", i)), sprintf("DAM %s: M", i), value = NA, min = 1))
-        )
-      })
-
-      do.call(tagList, filas)
     })
 
     observe({
-      d <- diseno(); req(d)
-      m_choices <- as.character(d$m_vector)
-
-      m_sel <- if (!is.null(input$m_nacional) && input$m_nacional %in% m_choices) input$m_nacional else m_choices[1]
-      updateSelectInput(session, "m_nacional", choices = m_choices, selected = m_sel)
-
-      dam_choices <- if (identical(input$usa_dominios, "si") && !is.null(input$n_dominios) && input$n_dominios >= 2) {
-        c("Todos", as.character(seq_len(input$n_dominios)))
-      } else c("Todos", "1")
-      dam_sel <- if (!is.null(input$dam_filtro) && input$dam_filtro %in% dam_choices) input$dam_filtro else "Todos"
-      updateSelectInput(session, "dam_filtro", choices = dam_choices, selected = dam_sel)
-
-      m_filter_choices <- c("Todos", m_choices)
-      m_filter_sel <- if (!is.null(input$m_filtro) && input$m_filtro %in% m_filter_choices) input$m_filtro else "Todos"
-      updateSelectInput(session, "m_filtro", choices = m_filter_choices, selected = m_filter_sel)
+      d <- entrada_base(); req(d)
+      if (isTRUE(d$usa_dominios)) {
+        choices <- as.character(unique(d$m_vector))
+        selected <- if (!is.null(input$m_sel) && input$m_sel %in% choices) input$m_sel else choices[1]
+        updateSelectInput(session, "m_sel", choices = choices, selected = selected)
+      }
     })
 
-    tabla_dam_completa <- reactive({
-      p <- parametro(); pr <- precision(); u <- unidad(); d <- diseno()
-      req(p, pr, u, d)
-
-      if (!identical(input$usa_dominios, "si")) {
-        return(do.call(rbind, lapply(d$m_vector, function(m_i) {
-          n_h <- if (p$tipo == "Media") {
-            ss4HHSm(N = d$N, M = d$M, rho = d$rho, mu = p$xbarra, sigma = p$s, delta = pr$delta, conf = pr$conf, m = m_i)
-          } else {
-            ss4HHSp(N = d$N, M = d$M, rho = d$rho, p = p$p, delta = pr$delta, conf = pr$conf, m = m_i)
-          }
-          data.frame(dam = 1, m = m_i, n_hogares = n_h, n_encuestas = ceiling(n_h * u$r * u$b), upm = ceiling(n_h / m_i))
-        })))
-      }
-
-      v <- valores_dominios()
-      out <- list(); k <- 1
-      for (j in seq_len(input$n_dominios)) {
-        for (m_i in d$m_vector) {
-          n_h <- if (p$tipo == "Media") {
-            ss4HHSm(N = v$N_dom[j], M = v$M_dom[j], rho = d$rho, mu = v$param_dom[j], sigma = v$sd_dom[j], delta = pr$delta, conf = pr$conf, m = m_i)
-          } else {
-            ss4HHSp(N = v$N_dom[j], M = v$M_dom[j], rho = d$rho, p = v$param_dom[j], delta = pr$delta, conf = pr$conf, m = m_i)
-          }
-          out[[k]] <- data.frame(dam = j, m = m_i, n_hogares = n_h, n_encuestas = ceiling(n_h * u$r * u$b), upm = ceiling(n_h / m_i))
-          k <- k + 1
-        }
-      }
-      do.call(rbind, out)
+    tabla_matrix <- reactive({
+      req(input$tabla_prop)
+      filas <- strsplit(trimws(input$tabla_prop), "\\n")[[1]]
+      do.call(rbind, lapply(filas, function(f) as.numeric(strsplit(f, ",")[[1]])))
     })
 
     validacion <- reactive({
-      p <- parametro(); d <- diseno(); req(p, d)
-
-      if (!identical(input$usa_dominios, "si")) {
-        if (is.null(input$m_nacional) || !(input$m_nacional %in% as.character(d$m_vector))) return("Seleccione un m nacional válido.")
-        return(NULL)
+      d <- entrada_base(); req(d)
+      if (isTRUE(d$usa_dominios)) {
+        if (is.null(input$m_sel) || !(input$m_sel %in% as.character(unique(d$m_vector)))) return("Seleccione un m válido.")
+      } else if (is.null(d$m_sel_nacional) || is.na(d$m_sel_nacional) || !(as.character(d$m_sel_nacional) %in% as.character(unique(d$m_vector)))) {
+        return("No hay un m nacional válido seleccionado desde el módulo 6.")
       }
 
-      if (is.na(input$n_dominios) || input$n_dominios < 2) return("Número de dominios DAM debe ser >= 2.")
-      v <- valores_dominios()
-      if (any(is.na(v$param_dom)) || any(is.na(v$N_dom)) || any(is.na(v$M_dom)) || any(v$N_dom <= 0) || any(v$M_dom <= 0)) {
-        return("Revise parámetros, N y M por DAM (numéricos y > 0).")
-      }
-      if (p$tipo == "Media") {
-        if (any(is.na(v$sd_dom)) || any(v$sd_dom <= 0)) return("Desviación estándar por DAM debe ser > 0.")
-      } else if (any(v$param_dom < 0 | v$param_dom > 1)) {
-        return("Parámetros proporción por DAM deben estar entre 0 y 1.")
+      if (identical(input$usa_area, "si")) {
+        if (is.na(input$n_areas) || input$n_areas < 2) return("Número de áreas debe ser >= 2.")
+        mat <- tryCatch(tabla_matrix(), error = function(e) NULL)
+        if (is.null(mat)) return("La tabla cruzada no tiene formato CSV válido.")
+        if (nrow(mat) != d$n_dominios) return(sprintf("La tabla debe tener %s filas (DAM).", d$n_dominios))
+        if (ncol(mat) != input$n_areas) return(sprintf("La tabla debe tener %s columnas (áreas).", input$n_areas))
+        if (any(is.na(mat)) || any(mat < 0)) return("La tabla no debe tener negativos ni faltantes.")
+        if (abs(sum(mat) - 1) > 1e-6) return("La tabla de proporciones debe sumar 1.")
       }
       NULL
     })
 
-    output$tabla_dam <- renderTable({
+    calc <- reactive({
       validate(need(is.null(validacion()), validacion()))
-      tb <- tabla_dam_completa()
-      if (!is.null(input$dam_filtro) && input$dam_filtro != "Todos") tb <- tb[tb$dam == as.numeric(input$dam_filtro), , drop = FALSE]
-      if (!is.null(input$m_filtro) && input$m_filtro != "Todos") tb <- tb[tb$m == as.numeric(input$m_filtro), , drop = FALSE]
-      tb
-    }, striped = TRUE, bordered = TRUE)
+      d <- entrada_base(); req(d)
+      m_sel <- if (isTRUE(d$usa_dominios)) as.numeric(input$m_sel) else as.numeric(d$m_sel_nacional)
 
-    output$resumen <- renderPrint({
-      validate(need(is.null(validacion()), validacion()))
-      if (identical(input$usa_dominios, "si")) {
-        cat("Representatividad DAM: Sí\n")
-        cat("Se guardaron los valores por dominio y se calculó para todos los m.\n")
+      if (isTRUE(d$usa_dominios)) {
+        if (d$tipo_param == "Media") {
+          n_dom <- mapply(function(mu_i, sd_i, N_i, M_i) ss4HHSm(N_i, M_i, d$rho, mu_i, sd_i, d$delta, d$conf, m_sel), d$param_dom, d$sd_dom, d$N_dom, d$M_dom)
+        } else {
+          n_dom <- mapply(function(p_i, N_i, M_i) ss4HHSp(N_i, M_i, d$rho, p_i, d$delta, d$conf, m_sel), d$param_dom, d$N_dom, d$M_dom)
+        }
       } else {
-        cat("Representatividad DAM: No\n")
-        cat("m nacional elegido:", input$m_nacional, "\n")
+        n_base <- if (d$tipo_param == "Media") {
+          ss4HHSm(d$N, d$M, d$rho, d$xbarra, d$s, d$delta, d$conf, m_sel)
+        } else {
+          ss4HHSp(d$N, d$M, d$rho, d$p, d$delta, d$conf, m_sel)
+        }
+        n_dom <- n_base
       }
-      cat("Continúe al siguiente módulo para los resultados finales y área.\n")
+
+      tabla_dom <- data.frame(dam = seq_len(length(n_dom)), n_hogares = as.numeric(n_dom))
+      n_hogares_total <- sum(n_dom)
+      n_encuestas <- ceiling(n_hogares_total * d$r * d$b)
+      upm <- ceiling(n_hogares_total / m_sel)
+
+      tabla_area <- if (identical(input$usa_area, "si")) ipfp_aproximada(tabla_matrix(), n_hogares_total) else matrix(n_hogares_total, nrow = max(1, d$n_dominios), ncol = 1)
+
+      list(
+        resumen = data.frame(Indicador = c("m seleccionado", "n_hogares total", "n_encuestas", "UPM"), Valor = c(m_sel, n_hogares_total, n_encuestas, upm)),
+        dom = tabla_dom,
+        area = as.data.frame(tabla_area),
+        m_sel = m_sel
+      )
     })
+
+    output$tabla_resultados <- renderTable(calc()$resumen, striped = TRUE, bordered = TRUE)
+    output$tabla_dominios <- renderTable(calc()$dom, striped = TRUE, bordered = TRUE)
+    output$tabla_area <- renderTable(calc()$area, striped = TRUE, bordered = TRUE)
+
+    codigo_r <- reactive({
+      d <- entrada_base(); req(d)
+      m_sel <- calc()$m_sel
+      paste0(
+"# Script exportado\n",
+"source('modulos/mod_utils.R')\n\n",
+"m <- ", m_sel, "\n",
+"M_dom <- c(", paste(d$M_dom, collapse = ","), ")\n",
+"print('Ejecute con los parámetros cargados desde la app para reproducir resultados.')\n")
+    })
+
+    output$codigo_r <- renderText(codigo_r())
+    output$descargar_codigo <- downloadHandler(
+      filename = function() paste0("calculo_muestra_", Sys.Date(), ".R"),
+      content = function(file) writeLines(codigo_r(), file)
+    )
 
     list(
       validacion = validacion,
       datos = reactive({
         validate(need(is.null(validacion()), validacion()))
-        d <- diseno(); p <- parametro(); req(d, p)
-        v <- if (identical(input$usa_dominios, "si")) valores_dominios() else list(param_dom = numeric(0), sd_dom = numeric(0), N_dom = numeric(0), M_dom = numeric(0))
-
         list(
-          usa_dominios = identical(input$usa_dominios, "si"),
-          m_sel_nacional = if (identical(input$usa_dominios, "si")) NA_real_ else as.numeric(input$m_nacional),
-          n_dominios = if (identical(input$usa_dominios, "si")) input$n_dominios else 1,
-          param_dom = v$param_dom,
-          sd_dom = if (identical(input$usa_dominios, "si") && p$tipo == "Media") v$sd_dom else numeric(0),
-          N_dom = v$N_dom,
-          M_dom = v$M_dom,
-          tabla_dam = tabla_dam_completa(),
-          m_vector = d$m_vector
+          m_sel = calc()$m_sel,
+          usa_area = identical(input$usa_area, "si"),
+          n_areas = if (identical(input$usa_area, "si")) input$n_areas else 1,
+          tabla_prop = if (identical(input$usa_area, "si")) tabla_matrix() else NULL
         )
       })
     )
