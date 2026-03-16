@@ -20,8 +20,8 @@ mod_dominios_server <- function(id, parametro, precision, unidad, diseno) {
   moduleServer(id, function(input, output, session) {
 
     tabla_nacional <- reactive({
-      p <- parametro(); pr <- precision(); u <- unidad(); d <- diseno()
-      req(p, pr, u, d)
+      p <- parametro(); pr <- precision(); d <- diseno()
+      req(p, pr, d)
 
       do.call(rbind, lapply(d$m_vector, function(m_i) {
         n_hogares <- if (p$tipo == "Media") {
@@ -31,10 +31,10 @@ mod_dominios_server <- function(id, parametro, precision, unidad, diseno) {
         }
 
         data.frame(
-          LM = m_i,
-          n_hogares_nacional = n_hogares,
-          n_encuestas_nacional = ceiling(n_hogares * u$r * u$b),
-          upm_nacional = ceiling(n_hogares / m_i)
+          HouseholdsPerPSU = m_i,
+          DEFF = round(1 + (m_i - 1) * d$rho, 4),
+          PSUinSample = ceiling(n_hogares / m_i),
+          HouseholdsInSample = n_hogares
         )
       }))
     })
@@ -44,8 +44,8 @@ mod_dominios_server <- function(id, parametro, precision, unidad, diseno) {
     }, striped = TRUE, bordered = TRUE)
 
     output$resumen <- renderPrint({
-      cat("Se calcularon resultados nacionales para todos los LM del vector.\n")
-      cat("En el siguiente módulo se pregunta si requiere representatividad DAM.\n")
+      cat("Se calcularon resultados nacionales para todos los valores de m (sin seleccionar uno en este módulo).\n")
+      cat("La tabla mantiene los nombres de salida: HouseholdsPerPSU, DEFF, PSUinSample, HouseholdsInSample.\n")
     })
 
     list(

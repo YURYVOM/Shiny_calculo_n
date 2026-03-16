@@ -1,25 +1,14 @@
 # =========================================================
-# PASO 5: Parámetros de presupuesto + cálculo de tamaño de muestra
+# PASO 5: Cálculo de tamaño de muestra
 # =========================================================
 
 mod_presupuesto_ui <- function(id) {
-  ns <- shiny::NS(id)
-
   tagList(
     wellPanel(
-      h3("Paso 5. Presupuesto y tamaño de muestra"),
-      p("Ingrese presupuesto, revise la tabla para todos los m y seleccione el m preferido."),
-      fluidRow(
-        column(6,
-               numericInput(ns("c_h"), "c_h (costo por encuesta/hogar):", value = 1, min = 0),
-               numericInput(ns("c_upm"), "c_UPM (costo fijo por UPM):", value = 1, min = 0)
-        ),
-        column(6,
-               selectInput(ns("m_sel"), "Seleccione m (el que le gustó más):", choices = character(0))
-        )
-      ),
+      h3("Paso 5. Tamaño de muestra"),
+      p("En este paso no se selecciona m: se calcula y muestra la tabla para todos los valores de m."),
       h4("Tabla de muestreo para vector de m"),
-      tableOutput(ns("tabla_muestreo"))
+      tableOutput(shiny::NS(id, "tabla_muestreo"))
     )
   )
 }
@@ -32,31 +21,49 @@ mod_presupuesto_server <- function(id, parametro, precision, unidad, diseno) {
       req(p, pr, u, d)
 
       do.call(rbind, lapply(d$m_vector, function(m_i) {
-        n_hogares <- if (p$tipo == "Media") {
-          ss4HHSm(N = d$N, M = d$M, rho = d$rho, mu = p$xbarra, sigma = p$s, delta = pr$delta, conf = pr$conf, m = m_i)
+        if (p$tipo == "Media") {
+          llamada <- sprintf(
+            "ss4HHSm(N = %s, M = %s, rho = %s, mu = %s, sigma = %s, delta = %s, conf = %s, m = %s)",
+            d$N, d$M, d$rho, p$xbarra, p$s, pr$delta, pr$conf, m_i
+          )
+          n_hogares <- ss4HHSm(N = d$N, M = d$M, rho = d$rho, mu = p$xbarra, sigma = p$s, delta = pr$delta, conf = pr$conf, m = m_i)
+          parametro <- p$xbarra
+          dispersion <- p$s
         } else {
-          ss4HHSp(N = d$N, M = d$M, rho = d$rho, p = p$p, delta = pr$delta, conf = pr$conf, m = m_i)
+          llamada <- sprintf(
+            "ss4HHSp(N = %s, M = %s, rho = %s, p = %s, delta = %s, conf = %s, m = %s)",
+            d$N, d$M, d$rho, p$p, pr$delta, pr$conf, m_i
+          )
+          n_hogares <- ss4HHSp(N = d$N, M = d$M, rho = d$rho, p = p$p, delta = pr$delta, conf = pr$conf, m = m_i)
+          parametro <- p$p
+          dispersion <- NA_real_
         }
+
         upm <- ceiling(n_hogares / m_i)
         n_enc <- ceiling(n_hogares * u$r * u$b)
-        costo <- n_hogares * input$c_h + upm * input$c_upm
-        data.frame(m = m_i, n_hogares = n_hogares, n_encuestas = n_enc, upm = upm, costo_total = round(costo, 2))
+
+        data.frame(
+          tipo = p$tipo,
+          funcion = llamada,
+          N = d$N,
+          M = d$M,
+          rho = d$rho,
+          parametro = parametro,
+          dispersion = dispersion,
+          delta = pr$delta,
+          conf = pr$conf,
+          m = m_i,
+          n_hogares = n_hogares,
+          n_encuestas = n_enc,
+          upm = upm,
+          stringsAsFactors = FALSE
+        )
       }))
     })
 
-    observe({
-      tb <- tabla_muestreo()
-      req(nrow(tb) > 0)
-      choices <- as.character(tb$m)
-      selected <- if (!is.null(input$m_sel) && input$m_sel %in% choices) input$m_sel else choices[1]
-      updateSelectInput(session, "m_sel", choices = choices, selected = selected)
-    })
-
     validacion <- reactive({
-      if (is.null(input$c_h) || is.na(input$c_h) || input$c_h < 0) return("c_h debe ser >= 0.")
-      if (is.null(input$c_upm) || is.na(input$c_upm) || input$c_upm < 0) return("c_UPM debe ser >= 0.")
       tb <- tabla_muestreo()
-      if (is.null(input$m_sel) || !(input$m_sel %in% as.character(tb$m))) return("Seleccione un m válido.")
+      if (is.null(tb) || nrow(tb) == 0) return("No hay resultados para mostrar.")
       NULL
     })
 
@@ -69,14 +76,8 @@ mod_presupuesto_server <- function(id, parametro, precision, unidad, diseno) {
       validacion = validacion,
       datos = reactive({
         validate(need(is.null(validacion()), validacion()))
-        tb <- tabla_muestreo()
-        fila <- tb[tb$m == as.numeric(input$m_sel), , drop = FALSE]
         list(
-          c_h = input$c_h,
-          c_upm = input$c_upm,
-          m_sel = as.numeric(input$m_sel),
-          tabla_muestreo = tb,
-          fila_m = fila
+          tabla_muestreo = tabla_muestreo()
         )
       })
     )
