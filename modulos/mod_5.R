@@ -19,23 +19,32 @@ mod_presupuesto_server <- function(id, parametro, precision, unidad, diseno) {
   shiny::moduleServer(id, function(input, output, session) {
 
     tabla_funcion <- shiny::reactive({
-      p <- parametro()
+      p  <- parametro()
       pr <- precision()
-      d <- diseno()
+      d  <- diseno()
       shiny::req(p, pr, d)
 
-      do.call(rbind, lapply(d$m_vector, function(m_i) {
+      out <- do.call(rbind, lapply(d$m_vector, function(m_i) {
         n_hogares <- if (p$tipo == "Media") {
           ss4HHSm(
-            N = d$N, M = d$M, rho = d$rho,
-            mu = p$xbarra, sigma = p$s,
-            delta = pr$delta, conf = pr$conf, m = m_i
+            N = d$N,
+            M = d$M,
+            rho = d$rho,
+            mu = p$xbarra,
+            sigma = p$s,
+            delta = pr$delta,
+            conf = pr$conf,
+            m = m_i
           )
         } else {
           ss4HHSp(
-            N = d$N, M = d$M, rho = d$rho,
+            N = d$N,
+            M = d$M,
+            rho = d$rho,
             p = p$p,
-            delta = pr$delta, conf = pr$conf, m = m_i
+            delta = pr$delta,
+            conf = pr$conf,
+            m = m_i
           )
         }
 
@@ -46,20 +55,20 @@ mod_presupuesto_server <- function(id, parametro, precision, unidad, diseno) {
           HouseholdsInSample = n_hogares,
           stringsAsFactors = FALSE
         )
-      }
+      }))
 
-      out <- as.data.frame(out)
-
-      if ("HouseholdsPerPSU" %in% names(out)) {
-        names(out)[names(out) == "HouseholdsPerPSU"] <- "m"
-      }
-
-      out
+      as.data.frame(out)
     })
 
-    tabla_muestreo <- reactive({
-      p <- parametro(); pr <- precision(); u <- unidad(); d <- diseno(); req(p, pr, u, d)
+    tabla_muestreo <- shiny::reactive({
+      p  <- parametro()
+      pr <- precision()
+      u  <- unidad()
+      d  <- diseno()
+      shiny::req(p, pr, u, d)
+
       tb <- tabla_funcion()
+
       transform(
         tb,
         n_encuestas = ceiling(HouseholdsInSample * u$r * u$b)
@@ -81,7 +90,9 @@ mod_presupuesto_server <- function(id, parametro, precision, unidad, diseno) {
       validacion = validacion,
       datos = shiny::reactive({
         shiny::validate(shiny::need(is.null(validacion()), validacion()))
-        list(tabla_muestreo = tabla_funcion())
+        list(
+          tabla_muestreo = tabla_funcion()
+        )
       })
     )
   })
