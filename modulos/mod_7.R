@@ -89,10 +89,11 @@ mod_resultados_server <- function(id, entrada_base) {
       m_sel <- if (isTRUE(d$usa_dominios)) as.numeric(input$m_sel) else as.numeric(d$m_sel_nacional)
 
       if (isTRUE(d$usa_dominios)) {
+        delta_dom <- if (!is.null(d$delta_dom) && length(d$delta_dom) == length(d$param_dom)) d$delta_dom else rep(d$delta, length(d$param_dom))
         if (d$tipo_param == "Media") {
-          n_dom <- mapply(function(mu_i, sd_i, N_i, M_i) ss4HHSm(N_i, M_i, d$rho, mu_i, sd_i, d$delta, d$conf, m_sel), d$param_dom, d$sd_dom, d$N_dom, d$M_dom)
+          n_dom <- mapply(function(mu_i, sd_i, N_i, M_i, delta_i) ss4HHSm(N_i, M_i, d$rho, mu_i, sd_i, delta_i, d$conf, m_sel), d$param_dom, d$sd_dom, d$N_dom, d$M_dom, delta_dom)
         } else {
-          n_dom <- mapply(function(p_i, N_i, M_i) ss4HHSp(N_i, M_i, d$rho, p_i, d$delta, d$conf, m_sel), d$param_dom, d$N_dom, d$M_dom)
+          n_dom <- mapply(function(p_i, N_i, M_i, delta_i) ss4HHSp(N_i, M_i, d$rho, p_i, delta_i, d$conf, m_sel), d$param_dom, d$N_dom, d$M_dom, delta_dom)
         }
       } else {
         n_base <- if (d$tipo_param == "Media") {
@@ -105,7 +106,8 @@ mod_resultados_server <- function(id, entrada_base) {
 
       tabla_dom <- data.frame(dam = seq_len(length(n_dom)), n_hogares = as.numeric(n_dom))
       n_hogares_total <- sum(n_dom)
-      n_encuestas <- ceiling(n_hogares_total * d$r * d$b)
+      factor_personas <- if (isTRUE(d$usa_dominios)) d$r_dam * d$b_dam else d$r * d$b
+      n_encuestas <- ceiling(n_hogares_total * factor_personas)
       upm <- ceiling(n_hogares_total / m_sel)
 
       tabla_area <- if (identical(input$usa_area, "si")) ipfp_aproximada(tabla_matrix(), n_hogares_total) else matrix(n_hogares_total, nrow = max(1, d$n_dominios), ncol = 1)
@@ -125,12 +127,91 @@ mod_resultados_server <- function(id, entrada_base) {
     codigo_r <- reactive({
       d <- entrada_base(); req(d)
       m_sel <- calc()$m_sel
-      paste0(
-"# Script exportado\n",
+      usa_area <- identical(input$usa_area, "si")
+      tabla_prop_txt <- if (usa_area) paste(capture.output(dput(tabla_matrix())), collapse = "\n") else "NULL"
+
+      param_dom_txt <- if (length(d$param_dom)) paste(d$param_dom, collapse = ", ") else ""
+      sd_dom_txt <- if (length(d$sd_dom)) paste(d$sd_dom, collapse = ", ") else ""
+      N_dom_txt <- if (length(d$N_dom)) paste(d$N_dom, collapse = ", ") else ""
+      M_dom_txt <- if (length(d$M_dom)) paste(d$M_dom, collapse = ", ") else ""
+      amplitud_dom_txt <- if (length(d$amplitud_dom)) paste(d$amplitud_dom, collapse = ", ") else ""
+
+      script <- paste0(
+"# =========================================================\n",
+"# Script reproducible exportado desde la app\n",
+"# Incluye cálculo nacional, DAM (si aplica) e IPFP por área (si aplica)\n",
+"# =========================================================\n\n",
 "source('modulos/mod_utils.R')\n\n",
-"m <- ", m_sel, "\n",
-"M_dom <- c(", paste(d$M_dom, collapse = ","), ")\n",
-"print('Ejecute con los parámetros cargados desde la app para reproducir resultados.')\n")
+"# ---- Entradas generales ----\n",
+"tipo_param <- '", d$tipo_param, "'\n",
+"conf <- ", d$conf, "\n",
+"rho <- ", d$rho, "\n",
+"m_sel <- ", m_sel, "\n",
+"N <- ", d$N, "\n",
+"M <- ", d$M, "\n",
+"amplitud <- ", d$amplitud, "\n",
+"delta <- ", d$delta, "\n",
+if (d$tipo_param == "Media") paste0("xbarra <- ", d$xbarra, "\n", "s <- ", d$s, "\n") else paste0("p <- ", d$p, "\n"),
+"r <- ", d$r, "\n",
+"b <- ", d$b, "\n\n",
+"# ---- Entradas DAM ----\n",
+"usa_dominios <- ", tolower(as.character(d$usa_dominios)), "\n",
+"n_dominios <- ", d$n_dominios, "\n",
+"unidad_dam <- '", d$unidad_dam, "'\n",
+"r_dam <- ", d$r_dam, "\n",
+"b_dam <- ", d$b_dam, "\n",
+if (d$tipo_param == "Media") paste0("mu_dom <- c(", param_dom_txt, ")\n", "sigma_dom <- c(", sd_dom_txt, ")\n") else paste0("p_dom <- c(", param_dom_txt, ")\n"),
+"N_dom <- c(", N_dom_txt, ")\n",
+"M_dom <- c(", M_dom_txt, ")\n",
+"amplitud_dom <- c(", amplitud_dom_txt, ")\n",
+"delta_dom <- amplitud_dom / 2\n\n",
+"# ---- Asignación por área ----\n",
+"usa_area <- ", tolower(as.character(usa_area)), "\n",
+"tabla_prop <- ", tabla_prop_txt, "\n\n",
+"# ---- Cálculo principal ----\n",
+"if (isTRUE(usa_dominios)) {\n",
+"  # Si DAM es a nivel personas, r_dam y b_dam deben venir informados (>0 y [0,1])\n",
+"  if (unidad_dam == 'Personas') {\n",
+"    stopifnot(!is.na(r_dam), r_dam > 0, !is.na(b_dam), b_dam >= 0, b_dam <= 1)\n",
+"  } else {\n",
+"    r_dam <- 1; b_dam <- 1\n",
+"  }\n",
+"\n",
+"  if (tipo_param == 'Media') {\n",
+"    n_dom <- mapply(function(mu_i, sd_i, N_i, M_i, delta_i) {\n",
+"      ss4HHSm(N = N_i, M = M_i, rho = rho, mu = mu_i, sigma = sd_i, delta = delta_i, conf = conf, m = m_sel)\n",
+"    }, mu_dom, sigma_dom, N_dom, M_dom, delta_dom)\n",
+"  } else {\n",
+"    n_dom <- mapply(function(p_i, N_i, M_i, delta_i) {\n",
+"      ss4HHSp(N = N_i, M = M_i, rho = rho, p = p_i, delta = delta_i, conf = conf, m = m_sel)\n",
+"    }, p_dom, N_dom, M_dom, delta_dom)\n",
+"  }\n",
+"\n",
+"  tabla_dom <- data.frame(dam = seq_along(n_dom), n_hogares = as.numeric(n_dom))\n",
+"  n_hogares_total <- sum(n_dom)\n",
+"  n_encuestas <- ceiling(n_hogares_total * r_dam * b_dam)\n",
+"} else {\n",
+"  # Cálculo nacional\n",
+"  if (tipo_param == 'Media') {\n",
+"    n_base <- ss4HHSm(N = N, M = M, rho = rho, mu = xbarra, sigma = s, delta = delta, conf = conf, m = m_sel)\n",
+"  } else {\n",
+"    n_base <- ss4HHSp(N = N, M = M, rho = rho, p = p, delta = delta, conf = conf, m = m_sel)\n",
+"  }\n",
+"  tabla_dom <- data.frame(dam = 1, n_hogares = as.numeric(n_base))\n",
+"  n_hogares_total <- as.numeric(n_base)\n",
+"  n_encuestas <- ceiling(n_hogares_total * r * b)\n",
+"}\n\n",
+"upm <- ceiling(n_hogares_total / m_sel)\n",
+"resumen <- data.frame(Indicador = c('m seleccionado', 'n_hogares total', 'n_encuestas', 'UPM'),\n",
+"                      Valor = c(m_sel, n_hogares_total, n_encuestas, upm))\n",
+"print(resumen)\n",
+"print(tabla_dom)\n\n",
+"if (isTRUE(usa_area)) {\n",
+"  tabla_area <- as.data.frame(ipfp_aproximada(tabla_prop, n_hogares_total))\n",
+"  print(tabla_area)\n",
+"}\n")
+
+      script
     })
 
     output$codigo_r <- renderText(codigo_r())
