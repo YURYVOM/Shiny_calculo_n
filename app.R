@@ -62,6 +62,9 @@ server <- function(input, output, session) {
   pasos <- paste0("paso", 1:8)
   paso_actual <- reactiveVal("paso1")
 
+  pasos <- c("paso1", "paso2", "paso3", "paso4", "paso5")
+  paso_actual <- reactiveVal("paso1")
+
   mod1 <- mod_parametro_server("param")
   mod2 <- mod_unidad_server("unidad")
   parametro_valor <- reactive({ p <- mod1$datos(); req(p); p$valor })
