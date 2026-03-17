@@ -90,10 +90,11 @@ mod_resultados_server <- function(id, entrada_base) {
 
       if (isTRUE(d$usa_dominios)) {
         delta_dom <- if (!is.null(d$delta_dom) && length(d$delta_dom) == length(d$param_dom)) d$delta_dom else rep(d$delta, length(d$param_dom))
+        rho_dom <- if (!is.null(d$rho_dom) && length(d$rho_dom) == length(d$param_dom)) d$rho_dom else rep(d$rho, length(d$param_dom))
         if (d$tipo_param == "Media") {
-          n_dom <- mapply(function(mu_i, sd_i, N_i, M_i, delta_i) ss4HHSm(N_i, M_i, d$rho, mu_i, sd_i, delta_i, d$conf, m_sel), d$param_dom, d$sd_dom, d$N_dom, d$M_dom, delta_dom)
+          n_dom <- mapply(function(mu_i, sd_i, N_i, M_i, delta_i, rho_i) ss4HHSm(N_i, M_i, rho_i, mu_i, sd_i, delta_i, d$conf, m_sel), d$param_dom, d$sd_dom, d$N_dom, d$M_dom, delta_dom, rho_dom)
         } else {
-          n_dom <- mapply(function(p_i, N_i, M_i, delta_i) ss4HHSp(N_i, M_i, d$rho, p_i, delta_i, d$conf, m_sel), d$param_dom, d$N_dom, d$M_dom, delta_dom)
+          n_dom <- mapply(function(p_i, N_i, M_i, delta_i, rho_i) ss4HHSp(N_i, M_i, rho_i, p_i, delta_i, d$conf, m_sel), d$param_dom, d$N_dom, d$M_dom, delta_dom, rho_dom)
         }
       } else {
         n_base <- if (d$tipo_param == "Media") {
@@ -138,6 +139,7 @@ mod_resultados_server <- function(id, entrada_base) {
       N_dom_txt <- if (length(d$N_dom)) paste(d$N_dom, collapse = ", ") else ""
       M_dom_txt <- if (length(d$M_dom)) paste(d$M_dom, collapse = ", ") else ""
       amplitud_dom_txt <- if (length(d$amplitud_dom)) paste(d$amplitud_dom, collapse = ", ") else ""
+      rho_dom_txt <- if (length(d$rho_dom)) paste(d$rho_dom, collapse = ", ") else ""
       r_dam_txt <- if (length(d$r_dam)) paste(d$r_dam, collapse = ", ") else ""
       b_dam_txt <- if (length(d$b_dam)) paste(d$b_dam, collapse = ", ") else ""
 
@@ -169,6 +171,7 @@ if (d$tipo_param == "Media") paste0("mu_dom <- c(", param_dom_txt, ")\n", "sigma
 "N_dom <- c(", N_dom_txt, ")\n",
 "M_dom <- c(", M_dom_txt, ")\n",
 "amplitud_dom <- c(", amplitud_dom_txt, ")\n",
+"rho_dom <- c(", rho_dom_txt, ")\n",
 "delta_dom <- amplitud_dom / 2\n\n",
 "# ---- Asignación por área ----\n",
 "usa_area <- ", tolower(as.character(usa_area)), "\n",
@@ -184,13 +187,13 @@ if (d$tipo_param == "Media") paste0("mu_dom <- c(", param_dom_txt, ")\n", "sigma
 "  }\n",
 "\n",
 "  if (tipo_param == 'Media') {\n",
-"    n_dom <- mapply(function(mu_i, sd_i, N_i, M_i, delta_i) {\n",
-"      ss4HHSm(N = N_i, M = M_i, rho = rho, mu = mu_i, sigma = sd_i, delta = delta_i, conf = conf, m = m_sel)\n",
-"    }, mu_dom, sigma_dom, N_dom, M_dom, delta_dom)\n",
+"    n_dom <- mapply(function(mu_i, sd_i, N_i, M_i, delta_i, rho_i) {\n",
+"      ss4HHSm(N = N_i, M = M_i, rho = rho_i, mu = mu_i, sigma = sd_i, delta = delta_i, conf = conf, m = m_sel)\n",
+"    }, mu_dom, sigma_dom, N_dom, M_dom, delta_dom, rho_dom)\n",
 "  } else {\n",
-"    n_dom <- mapply(function(p_i, N_i, M_i, delta_i) {\n",
-"      ss4HHSp(N = N_i, M = M_i, rho = rho, p = p_i, delta = delta_i, conf = conf, m = m_sel)\n",
-"    }, p_dom, N_dom, M_dom, delta_dom)\n",
+"    n_dom <- mapply(function(p_i, N_i, M_i, delta_i, rho_i) {\n",
+"      ss4HHSp(N = N_i, M = M_i, rho = rho_i, p = p_i, delta = delta_i, conf = conf, m = m_sel)\n",
+"    }, p_dom, N_dom, M_dom, delta_dom, rho_dom)\n",
 "  }\n",
 "\n",
 "  tabla_dom <- data.frame(dam = seq_along(n_dom), n_hogares = as.numeric(n_dom))\n",

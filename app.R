@@ -95,6 +95,7 @@ server <- function(input, output, session) {
       M_dom = d6$M_dom,
       amplitud_dom = d6$amplitud_dom,
       delta_dom = d6$delta_dom,
+      rho_dom = d6$rho_dom,
       m_vector = d6$m_vector,
       unidad_dam = d6$unidad_dam,
       r_dam = d6$r_dam,
