@@ -61,6 +61,7 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
       N_dom <- vapply(seq_len(n), function(i) valor_num_input(paste0("N_dom_", i)), numeric(1))
       M_dom <- vapply(seq_len(n), function(i) valor_num_input(paste0("M_dom_", i)), numeric(1))
       amplitud_dom <- vapply(seq_len(n), function(i) valor_num_input(paste0("amplitud_dom_", i)), numeric(1))
+      rho_dom <- vapply(seq_len(n), function(i) valor_num_input(paste0("rho_dom_", i)), numeric(1))
       r_dom <- vapply(seq_len(n), function(i) valor_num_input(paste0("r_dom_", i)), numeric(1))
       b_dom <- vapply(seq_len(n), function(i) valor_num_input(paste0("b_dom_", i)), numeric(1))
 
@@ -77,6 +78,7 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
         M_dom = M_dom,
         amplitud_dom = amplitud_dom,
         delta_dom = amplitud_dom / 2,
+        rho_dom = rho_dom,
         r_dom = r_dom,
         b_dom = b_dom
       )
@@ -103,6 +105,7 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
           column(2, numericInput(session$ns(paste0("N_dom_", i)), sprintf("DAM %s: N", i), value = NA, min = 1)),
           column(2, numericInput(session$ns(paste0("M_dom_", i)), sprintf("DAM %s: M", i), value = NA, min = 1)),
           column(2, numericInput(session$ns(paste0("amplitud_dom_", i)), sprintf("DAM %s: amplitud", i), value = NA, min = 0, step = 0.001)),
+          column(2, numericInput(session$ns(paste0("rho_dom_", i)), sprintf("DAM %s: rho", i), value = NA, min = 0, max = 1, step = 0.01)),
           column(1, if (identical(input$unidad_dam, "Personas")) numericInput(session$ns(paste0("r_dom_", i)), sprintf("DAM %s: r", i), value = NA, min = 0, step = 0.01) else tags$div()),
           column(1, if (identical(input$unidad_dam, "Personas")) numericInput(session$ns(paste0("b_dom_", i)), sprintf("DAM %s: b", i), value = NA, min = 0, max = 1, step = 0.01) else tags$div())
         )
@@ -142,14 +145,14 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
       for (j in seq_len(input$n_dominios)) {
         for (m_i in d$m_vector) {
           n_h <- if (p$tipo == "Media") {
-            ss4HHSm(N = v$N_dom[j], M = v$M_dom[j], rho = d$rho, mu = v$param_dom[j], sigma = v$sd_dom[j], delta = v$delta_dom[j], conf = pr$conf, m = m_i)
+            ss4HHSm(N = v$N_dom[j], M = v$M_dom[j], rho = v$rho_dom[j], mu = v$param_dom[j], sigma = v$sd_dom[j], delta = v$delta_dom[j], conf = pr$conf, m = m_i)
           } else {
-            ss4HHSp(N = v$N_dom[j], M = v$M_dom[j], rho = d$rho, p = v$param_dom[j], delta = v$delta_dom[j], conf = pr$conf, m = m_i)
+            ss4HHSp(N = v$N_dom[j], M = v$M_dom[j], rho = v$rho_dom[j], p = v$param_dom[j], delta = v$delta_dom[j], conf = pr$conf, m = m_i)
           }
           out[[k]] <- data.frame(
             dam = j,
             HouseholdsPerPSU = m_i,
-            DEFF = round(1 + (m_i - 1) * d$rho, 2),
+            DEFF = round(1 + (m_i - 1) * v$rho_dom[j], 2),
             PSUinSample = ceiling(n_h / m_i),
             HouseholdsInSample = n_h,
             stringsAsFactors = FALSE
@@ -174,6 +177,9 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
       }
       if (any(is.na(v$amplitud_dom)) || any(v$amplitud_dom <= 0)) {
         return("La amplitud por DAM debe ser mayor que 0.")
+      }
+      if (any(is.na(v$rho_dom)) || any(v$rho_dom < 0 | v$rho_dom > 1)) {
+        return("El rho por DAM debe estar entre 0 y 1.")
       }
       if (p$tipo == "Media") {
         if (any(is.na(v$sd_dom)) || any(v$sd_dom <= 0)) return("Desviación estándar por DAM debe ser > 0.")
@@ -201,10 +207,11 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
       validate(need(is.null(validacion()), validacion()))
       if (identical(input$usa_dominios, "si")) {
         cat("Representatividad DAM: Sí\n")
-        cat("Se guardaron parámetro, N, M y amplitud por dominio DAM.\n")
+        cat("Se guardaron parámetro, N, M, amplitud y rho por dominio DAM.\n")
         cat("Unidad DAM:", input$unidad_dam, "\n")
+        v <- valores_dominios()
+        cat("rho por DAM:", paste(v$rho_dom, collapse = ", "), "\n")
         if (input$unidad_dam == "Personas") {
-          v <- valores_dominios()
           cat("r por DAM:", paste(v$r_dom, collapse = ", "), "\n")
           cat("b por DAM:", paste(v$b_dom, collapse = ", "), "\n")
         }
@@ -231,6 +238,7 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
             M_dom = numeric(0),
             amplitud_dom = numeric(0),
             delta_dom = numeric(0),
+            rho_dom = numeric(0),
             r_dom = numeric(0),
             b_dom = numeric(0)
           )
@@ -246,6 +254,7 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
           M_dom = v$M_dom,
           amplitud_dom = v$amplitud_dom,
           delta_dom = v$delta_dom,
+          rho_dom = v$rho_dom,
           tabla_dam = tabla_dam_completa(),
           m_vector = d$m_vector,
           unidad_dam = if (identical(input$usa_dominios, "si")) input$unidad_dam else "Hogares",
