@@ -10,6 +10,13 @@ mod_presupuesto_ui <- function(id) {
       h3("Paso 5. Tamaño de muestra"),
       p("En este paso no se selecciona m: se calcula y muestra la tabla para todos los valores de m."),
       h4("Tamaños de muestra para diferentes m"),
+      shiny::downloadButton(
+        outputId = ns("descargar_muestra_nacional"),
+        label = "Descargar dataset en Excel",
+        class = "btn btn-success"
+      ),
+      tags$br(),
+      tags$br(),
       DT::DTOutput(ns("tabla_muestreo"))
     )
   )
@@ -83,15 +90,28 @@ mod_presupuesto_server <- function(id, parametro, precision, unidad, diseno) {
 
     output$tabla_muestreo <- DT::renderDT({
       shiny::validate(shiny::need(is.null(validacion()), validacion()))
-      tabla_funcion()
+      tabla_muestreo()
     }, options = list(pageLength = 10, scrollX = TRUE, autoWidth = TRUE))
+
+    output$descargar_muestra_nacional <- shiny::downloadHandler(
+      filename = function() {
+        paste0("muestra_nacional_", Sys.Date(), ".xlsx")
+      },
+      content = function(file) {
+        if (!requireNamespace("openxlsx", quietly = TRUE)) {
+          stop("Se requiere el paquete 'openxlsx' para exportar a Excel (.xlsx).")
+        }
+
+        openxlsx::write.xlsx(tabla_muestreo(), file = file, overwrite = TRUE)
+      }
+    )
 
     list(
       validacion = validacion,
       datos = shiny::reactive({
         shiny::validate(shiny::need(is.null(validacion()), validacion()))
         list(
-          tabla_muestreo = tabla_funcion()
+          tabla_muestreo = tabla_muestreo()
         )
       })
     )
