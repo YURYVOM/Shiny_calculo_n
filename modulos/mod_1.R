@@ -25,13 +25,13 @@ mod_parametro_ui <- function(id) {
         condition = sprintf("input['%s'] == 'Media'", ns("tipo_param")),
         shiny::numericInput(
           inputId = ns("xbarra"),
-          label = "Ingrese x̄ (media esperada):",
+          label = "Ingrese el promedio esperado de la variablede la interés (x_barra):",
           value = NA,
           min = 0
         ),
         shiny::numericInput(
           inputId = ns("s"),
-          label = "Ingrese s (desviación estándar):",
+          label = "Ingrese la desviación estándar esperada (s):",
           value = NA,
           min = 0
         )
@@ -41,7 +41,7 @@ mod_parametro_ui <- function(id) {
         condition = sprintf("input['%s'] == 'Proporción'", ns("tipo_param")),
         shiny::numericInput(
           inputId = ns("p"),
-          label = "Ingrese p (entre 0 y 1):",
+          "Ingrese la proporción esperada de la variable de interés (p, entre 0 y 1):",
           value = NA,
           min = 0,
           max = 1,

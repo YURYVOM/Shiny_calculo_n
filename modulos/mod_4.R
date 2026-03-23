@@ -8,16 +8,16 @@ mod_diseno_ui <- function(id) {
   tagList(
     wellPanel(
       h3("Módulo 4. Parámetros de diseño"),
-      p("Ingrese parámetros de diseño. El cálculo y comparación por vector de m se mostrará en el módulo siguiente."),
+      p("Ingrese los parámetros de diseño. El valor de m corresponde al submuestreo (número de unidades seleccionadas por UPM). El cálculo y la comparación para distintos valores de m se presentarán en el módulo siguiente."),
       fluidRow(
         column(6,
-               numericInput(ns("N"), "N (tamaño de población):", value = NA, min = 1),
-               numericInput(ns("M"), "M (UPM del marco):", value = NA, min = 1)
+               numericInput(ns("N"), "Ingrese el tamaño de la población (N):", value = NA, min = 1),
+               numericInput(ns("M"), "Ingrese el total de Unidades Primarias de Muestreo (UPM) en el marco (M):", value = NA, min = 1)
         ),
         column(6,
-               numericInput(ns("m_desde"), "m desde:", value = 8, min = 1),
-               numericInput(ns("m_hasta"), "m hasta:", value = 20, min = 1),
-               numericInput(ns("rho"), "rho (ICC):", value = 0.05, min = 0, max = 1, step = 0.01)
+               numericInput(ns("m_desde"), "Valor mínimo de submuestreo (m):", value = 8, min = 1),
+               numericInput(ns("m_hasta"), "Valor máximo de submuestreo (m):", value = 20, min = 1),
+               numericInput(ns("rho"), "Coeficiente de correlación intraclase (rho):", value = 0.05, min = 0, max = 1, step = 0.01)
         )
       )
     )

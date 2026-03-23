@@ -10,7 +10,7 @@ mod_precision_ui <- function(id) {
   shiny::tagList(
     shiny::wellPanel(
       h3("Módulo 3. Definir precisión"),
-      p("Ingrese amplitud y nivel de confianza. El valor de alpha se calcula automáticamente (alpha = 1 - confianza)."),
+      p("Ingrese amplitud y nivel de confianza."),
 
       shiny::numericInput(
         ns("amplitud"),
@@ -33,7 +33,8 @@ mod_precision_ui <- function(id) {
 
       hr(),
       h4("Resultados de precisión"),
-      verbatimTextOutput(ns("resultados"))
+      p("Verifique si las medidas de calidad cumplen con lo esperado. En caso contrario, ajuste la amplitud y el nivel de confianza hasta alcanzar la calidad deseada."),
+      tableOutput(ns("resultados"))
     )
   )
 }
@@ -82,18 +83,32 @@ mod_precision_server <- function(id, parametro) {
       ME() / p
     })
 
-    output$resultados <- renderPrint({
+    output$resultados <- renderTable({
       validate(need(is.null(validacion()), validacion()))
 
-      list(
-        z = round(z(), 4),
-        Error_estandar = round(SE(), 6),
-        Margen_error = round(ME(), 6),
-        Coeficiente_variacion = round(CV(), 6),
-        Margen_error_relativo = round(MR(), 6),
-        alpha_calculada = round(1 - as.numeric(input$conf), 4)
+      data.frame(
+        Indicador = c(
+          "z",
+          "Error estándar",
+          "Margen de error",
+          "Coeficiente de variación",
+          "Margen de error relativo",
+          "alpha calculada"
+        ),
+        Valor = c(
+          round(z(), 4),
+          round(SE(), 6),
+          round(ME(), 6),
+          round(CV(), 6),
+          round(MR(), 6),
+          round(1 - as.numeric(input$conf), 4)
+        )
       )
-    })
+    },
+    striped = TRUE,
+    bordered = TRUE,
+    spacing = "s",
+    width = "100%")
 
     list(
       validacion = validacion,

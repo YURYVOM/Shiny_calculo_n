@@ -7,9 +7,9 @@ mod_presupuesto_ui <- function(id) {
 
   shiny::tagList(
     shiny::wellPanel(
-      h3("Paso 5. Tamaño de muestra"),
-      p("En este paso no se selecciona m: se calcula y muestra la tabla para todos los valores de m."),
-      h4("Tamaños de muestra para diferentes m"),
+      h3("Módulo 5. Tamaño de muestra"),
+      p("En este módulo se calcula el tamaño de muestra nacional para diferentes valores de m. El parámetro m corresponde al tamaño de submuestreo, es decir, al número de unidades seleccionadas dentro de cada UPM."),
+      h4("Tamaños de muestra nacional según valores de m"),
       shiny::downloadButton(
         outputId = ns("descargar_muestra_nacional"),
         label = "Descargar dataset en Excel",
@@ -76,10 +76,6 @@ mod_presupuesto_server <- function(id, parametro, precision, unidad, diseno) {
 
       tb <- tabla_funcion()
 
-      transform(
-        tb,
-        n_encuestas = ceiling(HouseholdsInSample * u$r * u$b)
-      )
     })
 
     validacion <- shiny::reactive({

@@ -1,6 +1,11 @@
 library(shiny)
 library(bslib)
 
+library(shiny)
+library(bslib)
+
+addResourcePath("img", "img")
+
 # Cargar módulos
 source("modulos/mod_1.R")
 source("modulos/mod_2.R")
@@ -20,23 +25,92 @@ ui <- fluidPage(
     secondary = "#8fb3f4",
     base_font = font_google("Nunito")
   ),
+
   tags$head(
     tags$style(HTML("
       body { background: linear-gradient(180deg, #edf3ff 0%, #dce9ff 100%); }
-      .contenedor-principal { max-width: 1060px; margin: 24px auto; }
-      .tarjeta-paso { background: #fff; border-radius: 22px; padding: 28px; box-shadow: 0 10px 24px rgba(20,58,128,.12); border: 1px solid #d5e1fb; }
-      .titulo-app { text-align:center; color:#0d3f97; font-weight:900; margin-bottom:4px; }
-      .subtitulo-app { text-align:center; color:#375d9d; font-size:1.05rem; font-weight:700; margin-bottom:22px; }
-      .botones-nav { display:flex; justify-content:space-between; gap:12px; margin-top:20px; }
-      .well { background:#f7faff; border:1px solid #d6e3fd; border-radius:16px; }
+
+      .contenedor-principal {
+        max-width: 1060px;
+        margin: 24px auto;
+      }
+
+      /* 🔥 HEADER MEJORADO */
+      .header-app {
+        position: relative;
+        display: flex;
+        align-items: center;
+        margin-bottom: 12px;
+      }
+
+      .titulo-app {
+        color: #0d3f97;
+        font-weight: 900;
+        margin: 0 auto;
+        text-align: center;
+      }
+
+      .subtitulo-app {
+        text-align: center;
+        color: #375d9d;
+        font-size: 1.05rem;
+        font-weight: 700;
+        margin-bottom: 22px;
+      }
+
+      .tarjeta-paso {
+        background: #fff;
+        border-radius: 22px;
+        padding: 28px;
+        box-shadow: 0 10px 24px rgba(20,58,128,.12);
+        border: 1px solid #d5e1fb;
+      }
+
+      .botones-nav {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: 20px;
+      }
+
+      .well {
+        background: #f7faff;
+        border: 1px solid #d6e3fd;
+        border-radius: 16px;
+      }
+
+      /* 🔥 LOGO MEJOR POSICIONADO */
+      .logo-cepal {
+        height: 100px;
+        position: absolute;
+        right: 0;
+        top: 50%;
+        transform: translateY(-50%);
+      }
     "))
   ),
+
   div(
     class = "contenedor-principal",
-    h1("Calculadora de tamaño de muestra", class = "titulo-app"),
+
+    # 🔥 HEADER CENTRADO PRO
+    div(
+      class = "header-app",
+
+      h1("Calculadora de tamaño de muestra", class = "titulo-app"),
+
+      tags$img(
+        src = "img/logocepal2.png",
+        class = "logo-cepal",
+        alt = "Logo CEPAL"
+      )
+    ),
+
     div(class = "subtitulo-app", textOutput("titulo_paso")),
+
     div(
       class = "tarjeta-paso",
+
       tabsetPanel(
         id = "wizard", selected = "paso1", type = "hidden",
         tabPanel(title = "Módulo 1", value = "paso1", mod_parametro_ui("param")),
@@ -47,6 +121,7 @@ ui <- fluidPage(
         tabPanel(title = "Módulo 6", value = "paso6", mod_asignacion_ui("asignacion")),
         tabPanel(title = "Módulo 7", value = "paso7", mod_resultados_ui("resultados"))
       ),
+
       div(
         class = "botones-nav",
         actionButton("anterior", "← Atrás", class = "btn btn-outline-primary"),
