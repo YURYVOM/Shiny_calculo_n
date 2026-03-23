@@ -164,18 +164,20 @@ server <- function(input, output, session) {
       rho = d4$rho,
       usa_dominios = d6$usa_dominios,
       n_dominios = d6$n_dominios,
-      param_dom = d6$param_dom,
-      sd_dom = d6$sd_dom,
-      N_dom = d6$N_dom,
-      M_dom = d6$M_dom,
-      amplitud_dom = d6$amplitud_dom,
-      delta_dom = d6$delta_dom,
-      rho_dom = d6$rho_dom,
+      parametro_objetivo_dam = d6$parametro_objetivo_dam,
+      desviacion_estandar_dam = d6$desviacion_estandar_dam,
+      poblacion_dam = d6$poblacion_dam,
+      upm_marco_dam = d6$upm_marco_dam,
+      amplitud_dam = d6$amplitud_dam,
+      delta_dam = d6$delta_dam,
+      rho_dam = d6$rho_dam,
       m_vector = d6$m_vector,
+      m_seleccionado_nacional = d6$m_seleccionado_nacional,
+      m_seleccionado_dam = d6$m_seleccionado_dam,
+      tabla_m_seleccionado_dam = d6$tabla_m_seleccionado_dam,
       unidad_dam = d6$unidad_dam,
       r_dam = d6$r_dam,
-      b_dam = d6$b_dam,
-      m_sel_nacional = d6$m_sel_nacional
+      b_dam = d6$b_dam
     )
   })
 
