@@ -35,11 +35,14 @@ mod_presupuesto_server <- function(id, parametro, precision, unidad, diseno) {
       shiny::req(p, pr, u, d)
 
       out <- do.call(rbind, lapply(d$m_vector, function(m_i) {
-        tamano_muestra <- if (p$tipo == "Media") {
+
+        res <- if (p$tipo == "Media") {
           ss4HHSm(
             N = d$N,
             M = d$M,
             rho = d$rho,
+            r = u$r,
+            b = u$b,
             mu = p$xbarra,
             sigma = p$s,
             delta = pr$delta,
@@ -51,58 +54,70 @@ mod_presupuesto_server <- function(id, parametro, precision, unidad, diseno) {
             N = d$N,
             M = d$M,
             rho = d$rho,
-            p = p$p,
+            r = u$r,
+            b = u$b,
+            P = p$p,
             delta = pr$delta,
             conf = pr$conf,
             m = m_i
           )
         }
 
-        persons_per_household <- if (u$unidad == "Personas") {
-          u$r * u$b
-        } else {
-          1
-        }
-
-        persons_per_psu <- if (u$unidad == "Personas") {
-          m_i * u$r * u$b
-        } else {
-          m_i
-        }
-
-        deff_i <- 1 + (persons_per_psu - 1) * d$rho
-
-        data.frame(
-          HouseholdsPerPSU   = m_i,
-          PersonsPerPSU      = round(persons_per_psu, 0),
-          DEFF               = round(deff_i, 1),
-          PSUinSample        = ceiling(tamano_muestra / m_i),
-          HouseholdsInSample = ceiling(tamano_muestra),
-          PersonsInSample    = ceiling(tamano_muestra * persons_per_household),
-          stringsAsFactors = FALSE
-        )
+        as.data.frame(res)
       }))
 
-      as.data.frame(out)
+      out <- as.data.frame(out)
+
+      # Redondeo solo para presentación
+      if ("HouseholdsPerPSU" %in% names(out)) {
+        out$HouseholdsPerPSU <- round(out$HouseholdsPerPSU, 0)
+      }
+      if ("PersonsPerPSU" %in% names(out)) {
+        out$PersonsPerPSU <- round(out$PersonsPerPSU, 2)
+      }
+      if ("DEFF" %in% names(out)) {
+        out$DEFF <- round(out$DEFF, 1)
+      }
+      if ("PSUinSample" %in% names(out)) {
+        out$PSUinSample <- round(out$PSUinSample, 0)
+      }
+      if ("HouseholdsInSample" %in% names(out)) {
+        out$HouseholdsInSample <- round(out$HouseholdsInSample, 0)
+      }
+      if ("PersonsInSample" %in% names(out)) {
+        out$PersonsInSample <- round(out$PersonsInSample, 0)
+      }
+
+      out
     })
 
     validacion <- shiny::reactive({
       tb <- tabla_funcion()
-      if (is.null(tb) || nrow(tb) == 0) return("No hay resultados nacionales para mostrar.")
+      if (is.null(tb) || nrow(tb) == 0) {
+        return("No hay resultados nacionales para mostrar.")
+      }
       NULL
     })
 
     output$tabla_muestreo <- DT::renderDT({
       shiny::validate(shiny::need(is.null(validacion()), validacion()))
+
       DT::datatable(
         tabla_funcion(),
-        options = list(pageLength = 10, scrollX = TRUE, autoWidth = TRUE),
+        options = list(
+          pageLength = 10,
+          scrollX = TRUE,
+          autoWidth = TRUE
+        ),
         rownames = FALSE
       ) |>
         DT::formatStyle(
-          'DEFF',
-          target = 'row',
-          backgroundColor = DT::styleInterval(c(1, 3), c('#f8d7da', 'inherit', '#f8d7da'))
+          "DEFF",
+          target = "row",
+          backgroundColor = DT::styleInterval(
+            c(1, 3),
+            c("#f8d7da", "inherit", "#f8d7da")
+          )
         )
     })
 
@@ -115,7 +130,11 @@ mod_presupuesto_server <- function(id, parametro, precision, unidad, diseno) {
           stop("Se requiere el paquete 'openxlsx' para exportar a Excel (.xlsx).")
         }
 
-        openxlsx::write.xlsx(tabla_funcion(), file = file, overwrite = TRUE)
+        openxlsx::write.xlsx(
+          tabla_funcion(),
+          file = file,
+          overwrite = TRUE
+        )
       }
     )
 

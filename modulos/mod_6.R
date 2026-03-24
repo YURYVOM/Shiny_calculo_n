@@ -66,7 +66,9 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
     }
 
     output$selector_m_nacional_ui <- renderUI({
-      d <- diseno(); req(d)
+      d <- diseno()
+      req(d)
+
       selectInput(
         session$ns("m_seleccionado_nacional"),
         "Seleccione el valor de m nacional:",
@@ -76,59 +78,66 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
     })
 
     tabla_m_nacional_seleccionado <- reactive({
-      d <- diseno(); p <- parametro(); pr <- precision(); req(d, p, pr)
+      d <- diseno()
+      p <- parametro()
+      pr <- precision()
+      u <- unidad()
+      req(d, p, pr, u)
       req(identical(input$usa_dominios, "no"), !is.null(input$m_seleccionado_nacional))
 
       m_sel <- as.numeric(input$m_seleccionado_nacional)
-      tamano_muestra <- if (p$tipo == "Media") {
-        ss4HHSm(
-          N = d$N,
-          M = d$M,
-          rho = d$rho,
-          mu = p$xbarra,
-          sigma = p$s,
-          delta = pr$delta,
-          conf = pr$conf,
-          m = m_sel
-        )
-      } else {
-        ss4HHSp(
-          N = d$N,
-          M = d$M,
-          rho = d$rho,
-          p = p$p,
-          delta = pr$delta,
-          conf = pr$conf,
-          m = m_sel
-        )
-      }
 
-      data.frame(
-        HouseholdsPerPSU = m_sel,
-        DEFF = round(1 + (m_sel - 1) * d$rho, 2),
-        PSUinSample = ceiling(tamano_muestra / m_sel),
-        HouseholdsInSample = tamano_muestra,
-        stringsAsFactors = FALSE
-      )
-    })
+      if (identical(u$tipo, "Personas")) {
+        res <- if (p$tipo == "Media") {
+          ss4HHSm(
+            N = d$N,
+            M = d$M,
+            rho = d$rho,
+            r = u$r,
+            b = u$b,
+            mu = p$xbarra,
+            sigma = p$s,
+            delta = pr$delta,
+            conf = pr$conf,
+            m = m_i
+          )
+        } else {
+          ss4HHSp(
+            N = d$N,
+            M = d$M,
+            rho = d$rho,
+            r = u$r,
+            b = u$b,
+            P = p$p,
+            delta = pr$delta,
+            conf = pr$conf,
+            m = m_i
+          )
+        }
+
+        as.data.frame(res)
+      }))
 
     output$tabla_m_nacional_seleccionado <- DT::renderDT({
       validate(need(is.null(validacion()), validacion()))
       if (!identical(input$usa_dominios, "no")) return(NULL)
+
       DT::datatable(
         tabla_m_nacional_seleccionado(),
-        options = list(dom = 't', scrollX = TRUE, autoWidth = TRUE),
+        options = list(dom = "t", scrollX = TRUE, autoWidth = TRUE),
         rownames = FALSE
       ) |>
         DT::formatStyle(
-          'DEFF',
-          target = 'row',
-          backgroundColor = DT::styleInterval(c(1, 3), c('#f8d7da', 'inherit', '#f8d7da'))
+          "DEFF",
+          target = "row",
+          backgroundColor = DT::styleInterval(c(1, 3), c("#f8d7da", "inherit", "#f8d7da"))
         )
     })
 
     valores_dominios <- reactive({
-      p <- parametro(); req(p)
+      p <- parametro()
+      req(p)
+
       n <- input$n_dominios
       req(!is.null(n), n >= 2)
 
@@ -160,7 +169,9 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
     })
 
     output$dominios_ui <- renderUI({
-      p <- parametro(); req(p)
+      p <- parametro()
+      req(p)
+
       n <- input$n_dominios
       req(!is.null(n), n >= 2)
 
@@ -176,13 +187,39 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
               max = if (p$tipo == "Proporción") 1 else NA
             )
           ),
-          column(3, if (p$tipo == "Media") numericInput(session$ns(paste0("desviacion_estandar_dam_", i)), sprintf("DAM %s: desviación estándar", i), value = NA, min = 0) else tags$div()),
+          column(
+            3,
+            if (p$tipo == "Media") {
+              numericInput(
+                session$ns(paste0("desviacion_estandar_dam_", i)),
+                sprintf("DAM %s: desviación estándar", i),
+                value = NA,
+                min = 0
+              )
+            } else {
+              tags$div()
+            }
+          ),
           column(2, numericInput(session$ns(paste0("poblacion_dam_", i)), sprintf("DAM %s: población (N)", i), value = NA, min = 1)),
           column(2, numericInput(session$ns(paste0("upm_marco_dam_", i)), sprintf("DAM %s: UPM en marco (M)", i), value = NA, min = 1)),
           column(2, numericInput(session$ns(paste0("amplitud_dam_", i)), sprintf("DAM %s: amplitud", i), value = NA, min = 0, step = 0.001)),
           column(2, numericInput(session$ns(paste0("rho_dam_", i)), sprintf("DAM %s: rho", i), value = NA, min = 0, max = 1, step = 0.01)),
-          column(1, if (identical(input$unidad_dam, "Personas")) numericInput(session$ns(paste0("r_dam_", i)), sprintf("DAM %s: r", i), value = NA, min = 0, step = 0.01) else tags$div()),
-          column(1, if (identical(input$unidad_dam, "Personas")) numericInput(session$ns(paste0("b_dam_", i)), sprintf("DAM %s: b", i), value = NA, min = 0, max = 1, step = 0.01) else tags$div())
+          column(
+            1,
+            if (identical(input$unidad_dam, "Personas")) {
+              numericInput(session$ns(paste0("r_dam_", i)), sprintf("DAM %s: r", i), value = NA, min = 0, step = 0.01)
+            } else {
+              tags$div()
+            }
+          ),
+          column(
+            1,
+            if (identical(input$unidad_dam, "Personas")) {
+              numericInput(session$ns(paste0("b_dam_", i)), sprintf("DAM %s: b", i), value = NA, min = 0, step = 0.01)
+            } else {
+              tags$div()
+            }
+          )
         )
       })
 
@@ -190,14 +227,18 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
     })
 
     output$selector_m_dam_ui <- renderUI({
-      d <- diseno(); req(d)
+      d <- diseno()
+      req(d)
+
       n <- input$n_dominios
       req(identical(input$usa_dominios, "si"), !is.null(n), n >= 2)
 
       opciones_m <- as.character(d$m_vector)
+
       filas <- lapply(seq_len(n), function(i) {
         valor_actual <- input[[paste0("m_seleccionado_dam_", i)]]
         valor_seleccionado <- if (!is.null(valor_actual) && valor_actual %in% opciones_m) valor_actual else opciones_m[1]
+
         fluidRow(
           column(
             4,
@@ -210,18 +251,23 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
           )
         )
       })
+
       do.call(tagList, filas)
     })
 
     observe({
-      d <- diseno(); req(d)
+      d <- diseno()
+      req(d)
 
       n_dom <- suppressWarnings(as.integer(input$n_dominios))
       tiene_dominios <- identical(input$usa_dominios, "si") && !is.na(n_dom) && n_dom >= 2
 
       dam_choices <- if (isTRUE(tiene_dominios)) {
         c("Todos", as.character(seq_len(n_dom)))
-      } else c("Todos")
+      } else {
+        c("Todos")
+      }
+
       dam_sel <- if (!is.null(input$dam_filtro) && input$dam_filtro %in% dam_choices) input$dam_filtro else "Todos"
       updateSelectInput(session, "dam_filtro", choices = dam_choices, selected = dam_sel)
 
@@ -232,7 +278,9 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
     })
 
     tabla_dam_completa <- reactive({
-      p <- parametro(); pr <- precision(); d <- diseno()
+      p <- parametro()
+      pr <- precision()
+      d <- diseno()
       req(p, pr, d)
 
       if (!identical(input$usa_dominios, "si")) {
@@ -240,34 +288,80 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
       }
 
       v <- valores_dominios()
-      out <- list(); k <- 1
-      for (j in seq_len(input$n_dominios)) {
-        for (m_i in d$m_vector) {
-          tamano_muestra <- if (p$tipo == "Media") {
-            ss4HHSm(N = v$poblacion_dam[j], M = v$upm_marco_dam[j], rho = v$rho_dam[j], mu = v$parametro_objetivo_dam[j], sigma = v$desviacion_estandar_dam[j], delta = v$delta_dam[j], conf = pr$conf, m = m_i)
+
+      out <- do.call(rbind, lapply(seq_len(input$n_dominios), function(j) {
+        do.call(rbind, lapply(d$m_vector, function(m_i) {
+
+          res <- if (identical(input$unidad_dam, "Personas")) {
+            if (p$tipo == "Media") {
+              ss4HHSm(
+                N = v$poblacion_dam[j],
+                M = v$upm_marco_dam[j],
+                rho = v$rho_dam[j],
+                r = v$r_dam[j],
+                b = v$b_dam[j],
+                mu = v$parametro_objetivo_dam[j],
+                sigma = v$desviacion_estandar_dam[j],
+                delta = v$delta_dam[j],
+                conf = pr$conf,
+                m = m_i
+              )
+            } else {
+              ss4HHSp(
+                N = v$poblacion_dam[j],
+                M = v$upm_marco_dam[j],
+                rho = v$rho_dam[j],
+                r = v$r_dam[j],
+                b = v$b_dam[j],
+                P = v$parametro_objetivo_dam[j],
+                delta = v$delta_dam[j],
+                conf = pr$conf,
+                m = m_i
+              )
+            }
           } else {
-            ss4HHSp(N = v$poblacion_dam[j], M = v$upm_marco_dam[j], rho = v$rho_dam[j], p = v$parametro_objetivo_dam[j], delta = v$delta_dam[j], conf = pr$conf, m = m_i)
+            if (p$tipo == "Media") {
+              ss4HHSm(
+                N = v$poblacion_dam[j],
+                M = v$upm_marco_dam[j],
+                rho = v$rho_dam[j],
+                mu = v$parametro_objetivo_dam[j],
+                sigma = v$desviacion_estandar_dam[j],
+                delta = v$delta_dam[j],
+                conf = pr$conf,
+                m = m_i
+              )
+            } else {
+              ss4HHSp(
+                N = v$poblacion_dam[j],
+                M = v$upm_marco_dam[j],
+                rho = v$rho_dam[j],
+                P = v$parametro_objetivo_dam[j],
+                delta = v$delta_dam[j],
+                conf = pr$conf,
+                m = m_i
+              )
+            }
           }
-          out[[k]] <- data.frame(
-            DAM = j,
-            HouseholdsPerPSU = m_i,
-            DEFF = round(1 + (m_i - 1) * v$rho_dam[j], 2),
-            PSUinSample = ceiling(tamano_muestra / m_i),
-            HouseholdsInSample = tamano_muestra,
-            stringsAsFactors = FALSE
-          )
-          k <- k + 1
-        }
-      }
-      do.call(rbind, out)
+
+          res <- as.data.frame(res)
+          res$DAM <- j
+          res
+        }))
+      }))
+
+      rownames(out) <- NULL
+      out
     })
 
     tabla_m_seleccionado_dam <- reactive({
-      d <- diseno(); req(d)
+      d <- diseno()
+      req(d)
 
       if (identical(input$usa_dominios, "no")) {
         return(tabla_m_nacional_seleccionado())
       }
+
       if (!identical(input$usa_dominios, "si")) return(data.frame())
 
       tabla_completa <- tabla_dam_completa()
@@ -275,17 +369,30 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
 
       do.call(rbind, lapply(seq_len(input$n_dominios), function(i) {
         m_seleccionado <- as.numeric(input[[paste0("m_seleccionado_dam_", i)]])
-        tabla_completa[tabla_completa$DAM == i & tabla_completa$HouseholdsPerPSU == m_seleccionado, , drop = FALSE]
+        tabla_completa[
+          tabla_completa$DAM == i & tabla_completa$HouseholdsPerPSU == m_seleccionado,
+          ,
+          drop = FALSE
+        ]
       }))
     })
 
     validacion <- reactive({
-      p <- parametro(); d <- diseno(); req(p, d)
+      p <- parametro()
+      d <- diseno()
+      u <- unidad()
+      req(p, d, u)
 
       if (identical(input$usa_dominios, "no")) {
         if (is.null(input$m_seleccionado_nacional) || !(input$m_seleccionado_nacional %in% as.character(d$m_vector))) {
           return("Seleccione un valor válido de m nacional.")
         }
+
+        if (identical(u$tipo, "Personas")) {
+          if (is.null(u$r) || is.na(u$r) || u$r <= 0) return("El valor de r debe ser mayor que 0.")
+          if (is.null(u$b) || is.na(u$b) || u$b < 0) return("El valor de b debe ser mayor o igual que 0.")
+        }
+
         return(NULL)
       }
 
@@ -293,79 +400,126 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
         return("Debe indicar si desea representatividad por DAM.")
       }
 
-      if (is.na(input$n_dominios) || input$n_dominios < 2) return("Número de dominios DAM debe ser >= 2.")
+      if (is.na(input$n_dominios) || input$n_dominios < 2) {
+        return("Número de dominios DAM debe ser >= 2.")
+      }
+
       v <- valores_dominios()
-      if (any(is.na(v$parametro_objetivo_dam)) || any(is.na(v$poblacion_dam)) || any(is.na(v$upm_marco_dam)) || any(v$poblacion_dam <= 0) || any(v$upm_marco_dam <= 0)) {
+
+      if (any(is.na(v$parametro_objetivo_dam)) ||
+          any(is.na(v$poblacion_dam)) ||
+          any(is.na(v$upm_marco_dam)) ||
+          any(v$poblacion_dam <= 0) ||
+          any(v$upm_marco_dam <= 0)) {
         return("Revise parámetro objetivo, población y UPM en marco por DAM (numéricos y > 0).")
       }
+
       if (any(is.na(v$amplitud_dam)) || any(v$amplitud_dam <= 0)) {
         return("La amplitud por DAM debe ser mayor que 0.")
       }
+
       if (any(is.na(v$rho_dam)) || any(v$rho_dam < 0 | v$rho_dam > 1)) {
         return("El rho por DAM debe estar entre 0 y 1.")
       }
+
       if (p$tipo == "Media") {
-        if (any(is.na(v$desviacion_estandar_dam)) || any(v$desviacion_estandar_dam <= 0)) return("La desviación estándar por DAM debe ser > 0.")
-      } else if (any(v$parametro_objetivo_dam < 0 | v$parametro_objetivo_dam > 1)) {
-        return("Los parámetros de proporción por DAM deben estar entre 0 y 1.")
+        if (any(is.na(v$desviacion_estandar_dam)) || any(v$desviacion_estandar_dam <= 0)) {
+          return("La desviación estándar por DAM debe ser > 0.")
+        }
+      } else {
+        if (any(v$parametro_objetivo_dam < 0 | v$parametro_objetivo_dam > 1)) {
+          return("Los parámetros de proporción por DAM deben estar entre 0 y 1.")
+        }
       }
+
       if (identical(input$unidad_dam, "Personas")) {
-        if (any(is.na(v$r_dam)) || any(is.na(v$b_dam))) return("Debe ingresar r y b por cada DAM cuando la unidad es Personas.")
-        if (any(v$r_dam <= 0)) return("Todos los valores de r DAM deben ser mayores que 0.")
-        if (any(v$b_dam < 0 | v$b_dam > 1)) return("Todos los valores de b DAM deben estar entre 0 y 1.")
+        if (any(is.na(v$r_dam)) || any(is.na(v$b_dam))) {
+          return("Debe ingresar r y b por cada DAM cuando la unidad es Personas.")
+        }
+        if (any(v$r_dam <= 0)) {
+          return("Todos los valores de r DAM deben ser mayores que 0.")
+        }
+        if (any(v$b_dam < 0)) {
+          return("Todos los valores de b DAM deben ser mayores o iguales que 0.")
+        }
       }
+
       for (i in seq_len(input$n_dominios)) {
         valor_m <- input[[paste0("m_seleccionado_dam_", i)]]
         if (is.null(valor_m) || !(valor_m %in% as.character(d$m_vector))) {
           return(sprintf("Seleccione un valor válido de m para el DAM %s.", i))
         }
       }
+
       NULL
     })
 
     output$tabla_dam <- DT::renderDT({
       validate(need(is.null(validacion()), validacion()))
+
       if (!identical(input$usa_dominios, "si")) {
-        return(DT::datatable(data.frame(Nota = "No se solicitó representatividad por DAM."), options = list(dom = 't'), rownames = FALSE))
+        return(
+          DT::datatable(
+            data.frame(Nota = "No se solicitó representatividad por DAM."),
+            options = list(dom = "t"),
+            rownames = FALSE
+          )
+        )
       }
+
       tb <- tabla_dam_completa()
-      if (!is.null(input$dam_filtro) && input$dam_filtro != "Todos") tb <- tb[tb$DAM == as.numeric(input$dam_filtro), , drop = FALSE]
-      if (!is.null(input$m_filtro) && input$m_filtro != "Todos") tb <- tb[tb$HouseholdsPerPSU == as.numeric(input$m_filtro), , drop = FALSE]
+
+      if (!is.null(input$dam_filtro) && input$dam_filtro != "Todos") {
+        tb <- tb[tb$DAM == as.numeric(input$dam_filtro), , drop = FALSE]
+      }
+
+      if (!is.null(input$m_filtro) && input$m_filtro != "Todos") {
+        tb <- tb[tb$HouseholdsPerPSU == as.numeric(input$m_filtro), , drop = FALSE]
+      }
+
       DT::datatable(
         tb,
         options = list(pageLength = 10, scrollX = TRUE, autoWidth = TRUE),
         rownames = FALSE
       ) |>
         DT::formatStyle(
-          'DEFF',
-          target = 'row',
-          backgroundColor = DT::styleInterval(c(1, 3), c('#f8d7da', 'inherit', '#f8d7da'))
+          "DEFF",
+          target = "row",
+          backgroundColor = DT::styleInterval(c(1, 3), c("#f8d7da", "inherit", "#f8d7da"))
         )
     })
 
     output$tabla_m_seleccionado_dam <- DT::renderDT({
       validate(need(is.null(validacion()), validacion()))
+
       DT::datatable(
         tabla_m_seleccionado_dam(),
-        options = list(dom = 't', scrollX = TRUE, autoWidth = TRUE),
+        options = list(dom = "t", scrollX = TRUE, autoWidth = TRUE),
         rownames = FALSE
       ) |>
         DT::formatStyle(
-          'DEFF',
-          target = 'row',
-          backgroundColor = DT::styleInterval(c(1, 3), c('#f8d7da', 'inherit', '#f8d7da'))
+          "DEFF",
+          target = "row",
+          backgroundColor = DT::styleInterval(c(1, 3), c("#f8d7da", "inherit", "#f8d7da"))
         )
     })
 
     output$resumen <- renderPrint({
       validate(need(is.null(validacion()), validacion()))
+
       if (identical(input$usa_dominios, "si")) {
         cat("Representatividad DAM: Sí\n")
         cat("Se guardaron parámetro objetivo, población, UPM en marco, amplitud y rho por dominio DAM.\n")
         cat("Unidad DAM:", input$unidad_dam, "\n")
+
         v <- valores_dominios()
         cat("rho por DAM:", paste(v$rho_dam, collapse = ", "), "\n")
-        cat("m seleccionado por DAM:", paste(vapply(seq_len(input$n_dominios), function(i) input[[paste0("m_seleccionado_dam_", i)]], character(1)), collapse = ", "), "\n")
+        cat(
+          "m seleccionado por DAM:",
+          paste(vapply(seq_len(input$n_dominios), function(i) input[[paste0("m_seleccionado_dam_", i)]], character(1)), collapse = ", "),
+          "\n"
+        )
+
         if (input$unidad_dam == "Personas") {
           cat("r por DAM:", paste(v$r_dam, collapse = ", "), "\n")
           cat("b por DAM:", paste(v$b_dam, collapse = ", "), "\n")
@@ -374,6 +528,7 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
         cat("Representatividad DAM: No\n")
         cat("m nacional seleccionado:", input$m_seleccionado_nacional, "\n")
       }
+
       cat("Continúe al siguiente módulo para los resultados finales y la asignación IPFP.\n")
     })
 
@@ -381,11 +536,18 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
       validacion = validacion,
       datos = reactive({
         validate(need(is.null(validacion()), validacion()))
-        d <- diseno(); p <- parametro(); req(d, p)
+
+        d <- diseno()
+        p <- parametro()
+        req(d, p)
 
         if (identical(input$usa_dominios, "si")) {
           v <- valores_dominios()
-          m_seleccionado_dam <- vapply(seq_len(input$n_dominios), function(i) as.numeric(input[[paste0("m_seleccionado_dam_", i)]]), numeric(1))
+          m_seleccionado_dam <- vapply(
+            seq_len(input$n_dominios),
+            function(i) as.numeric(input[[paste0("m_seleccionado_dam_", i)]]),
+            numeric(1)
+          )
           m_seleccionado_nacional <- NA_real_
         } else {
           v <- list(
@@ -419,8 +581,16 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
           m_seleccionado_nacional = m_seleccionado_nacional,
           m_seleccionado_dam = m_seleccionado_dam,
           unidad_dam = if (identical(input$usa_dominios, "si")) input$unidad_dam else "Hogares",
-          r_dam = if (identical(input$usa_dominios, "si") && input$unidad_dam == "Personas") v$r_dam else rep(1, if (identical(input$usa_dominios, "si")) input$n_dominios else 1),
-          b_dam = if (identical(input$usa_dominios, "si") && input$unidad_dam == "Personas") v$b_dam else rep(1, if (identical(input$usa_dominios, "si")) input$n_dominios else 1)
+          r_dam = if (identical(input$usa_dominios, "si") && input$unidad_dam == "Personas") {
+            v$r_dam
+          } else {
+            rep(1, if (identical(input$usa_dominios, "si")) input$n_dominios else 1)
+          },
+          b_dam = if (identical(input$usa_dominios, "si") && input$unidad_dam == "Personas") {
+            v$b_dam
+          } else {
+            rep(1, if (identical(input$usa_dominios, "si")) input$n_dominios else 1)
+          }
         )
       })
     )
