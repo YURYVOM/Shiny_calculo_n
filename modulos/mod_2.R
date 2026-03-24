@@ -25,17 +25,16 @@ mod_unidad_ui <- function(id) {
         condition = sprintf("input['%s'] == 'Personas'", ns("unidad")),
         shiny::numericInput(
           inputId = ns("r"),
-          label = "Ingrese r (promedio de personas por hogar):",
+          label = "Ingrese la proporción de personas elegibles dentro del hogar (r, entre 0 y 1):",
           value = NA,
           min = 0,
           step = 0.01
         ),
         shiny::numericInput(
           inputId = ns("b"),
-          label = "Ingrese b (proporción elegible, entre 0 y 1):",
+          label = "Ingrese el tamaño promedio de personas por hogar (b):",
           value = NA,
           min = 0,
-          max = 1,
           step = 0.01
         )
       ),
@@ -56,12 +55,12 @@ mod_unidad_server <- function(id) {
           return("Debe ingresar r y b.")
         }
 
-        if (input$r <= 0) {
-          return("El valor de r debe ser mayor que 0.")
+        if (input$b <= 0) {
+          return("El valor de b debe ser mayor que 0.")
         }
 
-        if (input$b < 0 || input$b > 1) {
-          return("El valor de b debe estar entre 0 y 1.")
+        if (input$r < 0 || input$r > 1) {
+          return("El valor de r debe estar entre 0 y 1.")
         }
       }
 
@@ -92,14 +91,17 @@ mod_unidad_server <- function(id) {
 
     output$mensaje_unidad <- shiny::renderPrint({
       if (input$unidad == "Hogares") {
-        cat("Para hogares se asume automáticamente: r = 1 y b = 1")
+        cat("Para hogares se asume automáticamente:\n")
+        cat("- r = 1\n")
+        cat("- b = 1\n")
       } else {
         req(datos_unidad())
         cat("Valores seleccionados:\n")
-        print(datos_unidad())
+        cat("- Unidad de análisis:", datos_unidad()$unidad, "\n")
+        cat("- r (proporción elegible):", datos_unidad()$r, "\n")
+        cat("- b (tamaño promedio del hogar):", datos_unidad()$b, "\n")
       }
     })
-
     return(list(
       datos = datos_unidad,
       validacion = validacion

@@ -25,7 +25,7 @@ mod_parametro_ui <- function(id) {
         condition = sprintf("input['%s'] == 'Media'", ns("tipo_param")),
         shiny::numericInput(
           inputId = ns("xbarra"),
-          label = "Ingrese el promedio esperado de la variablede la interés (x_barra):",
+          label = "Ingrese el promedio esperado de la variable de interés (x_barra):",
           value = NA,
           min = 0
         ),
