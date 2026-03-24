@@ -41,7 +41,7 @@ mod_presupuesto_server <- function(id, parametro, precision, unidad, diseno) {
         b_val <- if (identical(unidad_tipo, "Personas")) u$b else 1
 
         res <- if (p$tipo == "Media") {
-          ss4HHSm(
+          media_args <- list(
             N = d$N,
             M = d$M,
             rho = d$rho,
@@ -52,6 +52,11 @@ mod_presupuesto_server <- function(id, parametro, precision, unidad, diseno) {
             delta = pr$delta,
             conf = pr$conf,
             m = m_i
+          )
+
+          do.call(
+            ss4HHSm,
+            media_args[names(media_args) %in% names(formals(ss4HHSm))]
           )
         } else {
           ss4HHSp(
