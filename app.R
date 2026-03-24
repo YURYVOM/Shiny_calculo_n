@@ -139,7 +139,7 @@ server <- function(input, output, session) {
   mod2 <- mod_unidad_server("unidad")
   parametro_valor <- reactive({ p <- mod1$datos(); req(p); p$valor })
   mod3 <- mod_precision_server("precision", parametro = parametro_valor)
-  precision_datos <- reactive({ list(delta = mod3$amplitud() / 2, conf = mod3$conf()) })
+  precision_datos <- reactive({ list(delta = mod3$MR()) })
   mod4 <- mod_diseno_server("diseno")
   mod5 <- mod_presupuesto_server("muestra_nacional", parametro = mod1$datos, precision = precision_datos, unidad = mod2$datos, diseno = mod4$datos)
   mod6 <- mod_asignacion_server("asignacion", parametro = mod1$datos, precision = precision_datos, unidad = mod2$datos, diseno = mod4$datos)
@@ -157,7 +157,7 @@ server <- function(input, output, session) {
       r = p2$r,
       b = p2$b,
       amplitud = mod3$amplitud(),
-      delta = mod3$amplitud() / 2,
+      delta = mod3$MR(),
       conf = mod3$conf(),
       N = d4$N,
       M = d4$M,

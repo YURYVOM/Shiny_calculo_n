@@ -58,19 +58,27 @@ mod_presupuesto_server <- function(id, parametro, precision, unidad, diseno) {
           )
         }
 
-        n_bar <- if (u$unidad == "Personas") {
+        persons_per_household <- if (u$unidad == "Personas") {
+          u$r * u$b
+        } else {
+          1
+        }
+
+        persons_per_psu <- if (u$unidad == "Personas") {
           m_i * u$r * u$b
         } else {
           m_i
         }
 
-        deff_i <- 1 + (n_bar - 1) * d$rho
+        deff_i <- 1 + (persons_per_psu - 1) * d$rho
 
         data.frame(
-          HouseholdsPerPSU = m_i,
-          DEFF = round(deff_i, 2),
-          PSUinSample = ceiling(tamano_muestra / m_i),
-          HouseholdsInSample = tamano_muestra,
+          HouseholdsPerPSU   = m_i,
+          PersonsPerPSU      = round(persons_per_psu, 0),
+          DEFF               = round(deff_i, 1),
+          PSUinSample        = ceiling(tamano_muestra / m_i),
+          HouseholdsInSample = ceiling(tamano_muestra),
+          PersonsInSample    = ceiling(tamano_muestra * persons_per_household),
           stringsAsFactors = FALSE
         )
       }))
