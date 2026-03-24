@@ -36,31 +36,56 @@ mod_presupuesto_server <- function(id, parametro, precision, unidad, diseno) {
 
       out <- do.call(rbind, lapply(d$m_vector, function(m_i) {
 
-        res <- if (p$tipo == "Media") {
-          ss4HHSm(
-            N = d$N,
-            M = d$M,
-            rho = d$rho,
-            r = u$r,
-            b = u$b,
-            mu = p$xbarra,
-            sigma = p$s,
-            delta = pr$delta,
-            conf = pr$conf,
-            m = m_i
-          )
+        res <- if (u$tipo == "Personas") {
+          if (p$tipo == "Media") {
+            ss4HHSm(
+              N = d$N,
+              M = d$M,
+              rho = d$rho,
+              r = u$r,
+              b = u$b,
+              mu = p$xbarra,
+              sigma = p$s,
+              delta = pr$delta,
+              conf = pr$conf,
+              m = m_i
+            )
+          } else {
+            ss4HHSp(
+              N = d$N,
+              M = d$M,
+              rho = d$rho,
+              r = u$r,
+              b = u$b,
+              P = p$p,
+              delta = pr$delta,
+              conf = pr$conf,
+              m = m_i
+            )
+          }
         } else {
-          ss4HHSp(
-            N = d$N,
-            M = d$M,
-            rho = d$rho,
-            r = u$r,
-            b = u$b,
-            P = p$p,
-            delta = pr$delta,
-            conf = pr$conf,
-            m = m_i
-          )
+          if (p$tipo == "Media") {
+            ss4HHSm(
+              N = d$N,
+              M = d$M,
+              rho = d$rho,
+              mu = p$xbarra,
+              sigma = p$s,
+              delta = pr$delta,
+              conf = pr$conf,
+              m = m_i
+            )
+          } else {
+            ss4HHSp(
+              N = d$N,
+              M = d$M,
+              rho = d$rho,
+              P = p$p,
+              delta = pr$delta,
+              conf = pr$conf,
+              m = m_i
+            )
+          }
         }
 
         as.data.frame(res)
