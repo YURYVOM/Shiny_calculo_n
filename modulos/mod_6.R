@@ -87,7 +87,7 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
 
       m_sel <- as.numeric(input$m_seleccionado_nacional)
 
-      if (identical(u$tipo, "Personas")) {
+      if (identical(u$unidad, "Personas")) {
         res <- if (p$tipo == "Media") {
           ss4HHSm(
             N = d$N,
@@ -99,7 +99,7 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
             sigma = p$s,
             delta = pr$delta,
             conf = pr$conf,
-            m = m_i
+            m = m_sel
           )
         } else {
           ss4HHSp(
@@ -111,12 +111,36 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
             P = p$p,
             delta = pr$delta,
             conf = pr$conf,
-            m = m_i
+            m = m_sel
           )
         }
+      } else {
+        res <- if (p$tipo == "Media") {
+          ss4HHSm(
+            N = d$N,
+            M = d$M,
+            rho = d$rho,
+            mu = p$xbarra,
+            sigma = p$s,
+            delta = pr$delta,
+            conf = pr$conf,
+            m = m_sel
+          )
+        } else {
+          ss4HHSp(
+            N = d$N,
+            M = d$M,
+            rho = d$rho,
+            P = p$p,
+            delta = pr$delta,
+            conf = pr$conf,
+            m = m_sel
+          )
+        }
+      }
 
-        as.data.frame(res)
-      }))
+      as.data.frame(res)
+    })
 
     output$tabla_m_nacional_seleccionado <- DT::renderDT({
       validate(need(is.null(validacion()), validacion()))
@@ -388,7 +412,7 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
           return("Seleccione un valor válido de m nacional.")
         }
 
-        if (identical(u$tipo, "Personas")) {
+        if (identical(u$unidad, "Personas")) {
           if (is.null(u$r) || is.na(u$r) || u$r <= 0) return("El valor de r debe ser mayor que 0.")
           if (is.null(u$b) || is.na(u$b) || u$b < 0) return("El valor de b debe ser mayor o igual que 0.")
         }
