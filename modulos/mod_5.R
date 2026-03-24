@@ -33,59 +33,43 @@ mod_presupuesto_server <- function(id, parametro, precision, unidad, diseno) {
       u  <- unidad()
       d  <- diseno()
       shiny::req(p, pr, u, d)
+      unidad_tipo <- if (!is.null(u$unidad)) u$unidad else u$tipo
+      shiny::req(!is.null(unidad_tipo), length(unidad_tipo) == 1)
 
       out <- do.call(rbind, lapply(d$m_vector, function(m_i) {
+        r_val <- if (identical(unidad_tipo, "Personas")) u$r else 1
+        b_val <- if (identical(unidad_tipo, "Personas")) u$b else 1
 
-        res <- if (u$tipo == "Personas") {
-          if (p$tipo == "Media") {
-            ss4HHSm(
-              N = d$N,
-              M = d$M,
-              rho = d$rho,
-              r = u$r,
-              b = u$b,
-              mu = p$xbarra,
-              sigma = p$s,
-              delta = pr$delta,
-              conf = pr$conf,
-              m = m_i
-            )
-          } else {
-            ss4HHSp(
-              N = d$N,
-              M = d$M,
-              rho = d$rho,
-              r = u$r,
-              b = u$b,
-              P = p$p,
-              delta = pr$delta,
-              conf = pr$conf,
-              m = m_i
-            )
-          }
+        res <- if (p$tipo == "Media") {
+          media_args <- list(
+            N = d$N,
+            M = d$M,
+            rho = d$rho,
+            r = r_val,
+            b = b_val,
+            mu = p$xbarra,
+            sigma = p$s,
+            delta = pr$delta,
+            conf = pr$conf,
+            m = m_i
+          )
+
+          do.call(
+            ss4HHSm,
+            media_args[names(media_args) %in% names(formals(ss4HHSm))]
+          )
         } else {
-          if (p$tipo == "Media") {
-            ss4HHSm(
-              N = d$N,
-              M = d$M,
-              rho = d$rho,
-              mu = p$xbarra,
-              sigma = p$s,
-              delta = pr$delta,
-              conf = pr$conf,
-              m = m_i
-            )
-          } else {
-            ss4HHSp(
-              N = d$N,
-              M = d$M,
-              rho = d$rho,
-              P = p$p,
-              delta = pr$delta,
-              conf = pr$conf,
-              m = m_i
-            )
-          }
+          ss4HHSp(
+            N = d$N,
+            M = d$M,
+            rho = d$rho,
+            r = r_val,
+            b = b_val,
+            P = p$p,
+            delta = pr$delta,
+            conf = pr$conf,
+            m = m_i
+          )
         }
 
         as.data.frame(res)
