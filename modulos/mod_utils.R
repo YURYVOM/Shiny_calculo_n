@@ -20,12 +20,12 @@
 
 ss4HHSm <- function(N, M, rho, mu, sigma, delta, conf, m) {
   fn <- .resolve_fun("ss4HHSm", c("samplesize4surveys", "SAMPLESIZE4SURVEYS"))
-  fn(N = N, M = M, rho = rho, mu = mu, sigma = sigma, delta = delta, conf = conf, m = m)
+  fn(N, M, rho, mu, sigma, delta, conf, m)
 }
 
 ss4HHSp <- function(N, M, rho, p, delta, conf, m) {
   fn <- .resolve_fun("ss4HHSp", c("samplesize4surveys", "SAMPLESIZE4SURVEYS"))
-  fn(N = N, M = M, rho = rho, p = p, delta = delta, conf = conf, m = m)
+  fn(N, M, rho, p, delta, conf, m)
 }
 
 ipfp_aproximada <- function(tabla_prop, n_total) {
