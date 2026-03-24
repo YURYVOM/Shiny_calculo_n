@@ -39,9 +39,6 @@ mod_asignacion_ui <- function(id) {
         ),
         uiOutput(ns("dominios_ui")),
         tags$hr(),
-        h4("Selección del parámetro m por DAM"),
-        p("Seleccione el valor de m que se utilizará en el cálculo final para cada DAM."),
-        uiOutput(ns("selector_m_dam_ui")),
         fluidRow(
           column(6, selectInput(ns("dam_filtro"), "Filtro DAM para visualizar:", choices = character(0))),
           column(6, selectInput(ns("m_filtro"), "Filtro m para visualizar:", choices = character(0)))
@@ -49,6 +46,12 @@ mod_asignacion_ui <- function(id) {
       ),
       h4("Resultados por DAM y por m"),
       DT::DTOutput(ns("tabla_dam")),
+      conditionalPanel(
+        condition = sprintf("input['%s'] == 'si'", ns("usa_dominios")),
+        h4("Selección final del parámetro m para todos los DAM"),
+        p("Después de revisar los resultados, seleccione un único valor de m que se aplicará a todos los DAM."),
+        uiOutput(ns("selector_m_dam_ui"))
+      ),
       h4("Resumen de selección final"),
       DT::DTOutput(ns("tabla_m_seleccionado_dam")),
       verbatimTextOutput(ns("resumen"))
@@ -254,29 +257,18 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
       d <- diseno()
       req(d)
 
-      n <- input$n_dominios
-      req(identical(input$usa_dominios, "si"), !is.null(n), n >= 2)
+      req(identical(input$usa_dominios, "si"))
 
       opciones_m <- as.character(d$m_vector)
+      valor_actual <- input$m_seleccionado_dam_global
+      valor_seleccionado <- if (!is.null(valor_actual) && valor_actual %in% opciones_m) valor_actual else opciones_m[1]
 
-      filas <- lapply(seq_len(n), function(i) {
-        valor_actual <- input[[paste0("m_seleccionado_dam_", i)]]
-        valor_seleccionado <- if (!is.null(valor_actual) && valor_actual %in% opciones_m) valor_actual else opciones_m[1]
-
-        fluidRow(
-          column(
-            4,
-            selectInput(
-              session$ns(paste0("m_seleccionado_dam_", i)),
-              sprintf("DAM %s: valor de m", i),
-              choices = opciones_m,
-              selected = valor_seleccionado
-            )
-          )
-        )
-      })
-
-      do.call(tagList, filas)
+      selectInput(
+        session$ns("m_seleccionado_dam_global"),
+        "Valor de m para todos los DAM:",
+        choices = opciones_m,
+        selected = valor_seleccionado
+      )
     })
 
     observe({
@@ -390,11 +382,11 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
 
       tabla_completa <- tabla_dam_completa()
       req(nrow(tabla_completa) > 0)
+      m_seleccionado_global <- as.numeric(input$m_seleccionado_dam_global)
 
       do.call(rbind, lapply(seq_len(input$n_dominios), function(i) {
-        m_seleccionado <- as.numeric(input[[paste0("m_seleccionado_dam_", i)]])
         tabla_completa[
-          tabla_completa$DAM == i & tabla_completa$HouseholdsPerPSU == m_seleccionado,
+          tabla_completa$DAM == i & tabla_completa$HouseholdsPerPSU == m_seleccionado_global,
           ,
           drop = FALSE
         ]
@@ -468,11 +460,8 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
         }
       }
 
-      for (i in seq_len(input$n_dominios)) {
-        valor_m <- input[[paste0("m_seleccionado_dam_", i)]]
-        if (is.null(valor_m) || !(valor_m %in% as.character(d$m_vector))) {
-          return(sprintf("Seleccione un valor válido de m para el DAM %s.", i))
-        }
+      if (is.null(input$m_seleccionado_dam_global) || !(input$m_seleccionado_dam_global %in% as.character(d$m_vector))) {
+        return("Seleccione un valor válido de m para aplicar a todos los DAM.")
       }
 
       NULL
@@ -539,8 +528,8 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
         v <- valores_dominios()
         cat("rho por DAM:", paste(v$rho_dam, collapse = ", "), "\n")
         cat(
-          "m seleccionado por DAM:",
-          paste(vapply(seq_len(input$n_dominios), function(i) input[[paste0("m_seleccionado_dam_", i)]], character(1)), collapse = ", "),
+          "m seleccionado para todos los DAM:",
+          input$m_seleccionado_dam_global,
           "\n"
         )
 
@@ -567,11 +556,7 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
 
         if (identical(input$usa_dominios, "si")) {
           v <- valores_dominios()
-          m_seleccionado_dam <- vapply(
-            seq_len(input$n_dominios),
-            function(i) as.numeric(input[[paste0("m_seleccionado_dam_", i)]]),
-            numeric(1)
-          )
+          m_seleccionado_dam <- rep(as.numeric(input$m_seleccionado_dam_global), input$n_dominios)
           m_seleccionado_nacional <- NA_real_
         } else {
           v <- list(
