@@ -30,8 +30,9 @@ mod_presupuesto_server <- function(id, parametro, precision, unidad, diseno) {
     tabla_funcion <- shiny::reactive({
       p  <- parametro()
       pr <- precision()
+      u  <- unidad()
       d  <- diseno()
-      shiny::req(p, pr, d)
+      shiny::req(p, pr, u, d)
 
       out <- do.call(rbind, lapply(d$m_vector, function(m_i) {
         tamano_muestra <- if (p$tipo == "Media") {
@@ -57,9 +58,17 @@ mod_presupuesto_server <- function(id, parametro, precision, unidad, diseno) {
           )
         }
 
+        n_bar <- if (u$unidad == "Personas") {
+          m_i * u$r * u$b
+        } else {
+          m_i
+        }
+
+        deff_i <- 1 + (n_bar - 1) * d$rho
+
         data.frame(
           HouseholdsPerPSU = m_i,
-          DEFF = round(1 + (m_i - 1) * d$rho, 2),
+          DEFF = round(deff_i, 2),
           PSUinSample = ceiling(tamano_muestra / m_i),
           HouseholdsInSample = tamano_muestra,
           stringsAsFactors = FALSE
