@@ -18,14 +18,60 @@
   )
 }
 
+.call_with_variants <- function(fn, variants) {
+  errores <- character(0)
+
+  for (args in variants) {
+    intento <- tryCatch(
+      do.call(fn, args),
+      error = function(e) e
+    )
+
+    if (!inherits(intento, "error")) {
+      return(intento)
+    }
+
+    errores <- c(errores, conditionMessage(intento))
+  }
+
+  stop(
+    paste0(
+      "No se pudo ejecutar la función externa con las variantes esperadas. ",
+      "Errores observados: ",
+      paste(unique(errores), collapse = " | ")
+    ),
+    call. = FALSE
+  )
+}
+
 ss4HHSm <- function(N, M, rho, mu, sigma, delta, conf, m) {
   fn <- .resolve_fun("ss4HHSm", c("samplesize4surveys", "SAMPLESIZE4SURVEYS"))
-  fn(N, M, rho, mu, sigma, delta, conf, m)
+
+  .call_with_variants(
+    fn,
+    variants = list(
+      list(N = N, M = M, rho = rho, mu = mu, sigma = sigma, delta = delta, conf = conf, m = m),
+      list(N = N, M = M, rho = rho, mu = mu, sigma = sigma, delta = delta, m = m, conf = conf),
+      list(N = N, M = M, rho = rho, xbar = mu, S = sigma, delta = delta, conf = conf, m = m),
+      list(N = N, M = M, rho = rho, mean = mu, sd = sigma, delta = delta, conf = conf, m = m),
+      list(N, M, rho, mu, sigma, delta, conf, m)
+    )
+  )
 }
 
 ss4HHSp <- function(N, M, rho, p, delta, conf, m) {
   fn <- .resolve_fun("ss4HHSp", c("samplesize4surveys", "SAMPLESIZE4SURVEYS"))
-  fn(N, M, rho, p, delta, conf, m)
+
+  .call_with_variants(
+    fn,
+    variants = list(
+      list(N = N, M = M, rho = rho, p = p, delta = delta, conf = conf, m = m),
+      list(N = N, M = M, rho = rho, P = p, delta = delta, conf = conf, m = m),
+      list(N = N, M = M, rho = rho, p = p, delta = delta, m = m, conf = conf),
+      list(N = N, M = M, rho = rho, P = p, delta = delta, m = m, conf = conf),
+      list(N, M, rho, p, delta, conf, m)
+    )
+  )
 }
 
 ipfp_aproximada <- function(tabla_prop, n_total) {
