@@ -184,9 +184,55 @@ mod_resultados_server <- function(id, entrada_base) {
         )
       } else {
         n_base <- if (d$tipo_param == "Media") {
-          ss4HHSm(d$N, d$M, d$rho, d$xbarra, d$s, d$delta, d$conf, d$m_seleccionado_nacional)
+          if (identical(d$unidad, "Personas")) {
+            ss4HHSm(
+              N = d$N,
+              M = d$M,
+              rho = d$rho,
+              r = d$r,
+              b = d$b,
+              mu = d$xbarra,
+              sigma = d$s,
+              delta = d$delta,
+              conf = d$conf,
+              m = d$m_seleccionado_nacional
+            )
+          } else {
+            ss4HHSm(
+              N = d$N,
+              M = d$M,
+              rho = d$rho,
+              mu = d$xbarra,
+              sigma = d$s,
+              delta = d$delta,
+              conf = d$conf,
+              m = d$m_seleccionado_nacional
+            )
+          }
         } else {
-          ss4HHSp(d$N, d$M, d$rho, d$p, d$delta, d$conf, d$m_seleccionado_nacional)
+          if (identical(d$unidad, "Personas")) {
+            ss4HHSp(
+              N = d$N,
+              M = d$M,
+              rho = d$rho,
+              r = d$r,
+              b = d$b,
+              P = d$p,
+              delta = d$delta,
+              conf = d$conf,
+              m = d$m_seleccionado_nacional
+            )
+          } else {
+            ss4HHSp(
+              N = d$N,
+              M = d$M,
+              rho = d$rho,
+              P = d$p,
+              delta = d$delta,
+              conf = d$conf,
+              m = d$m_seleccionado_nacional
+            )
+          }
         }
         tabla_base <- data.frame(
           DAM = "Nacional",
@@ -299,6 +345,7 @@ if (d$tipo_param == "Media") paste0("media_nacional <- ", d$xbarra, "\n", "desvi
 "    N = poblacion_nacional,\n",
 "    M = upm_marco_nacional,\n",
 "    rho = rho_nacional,\n",
+if (identical(d$unidad, "Personas")) "    r = r_nacional,\n    b = b_nacional,\n" else "",
 "    mu = media_nacional,\n",
 "    sigma = desviacion_estandar_nacional,\n",
 "    delta = delta_nacional,\n",
@@ -310,7 +357,8 @@ if (d$tipo_param == "Media") paste0("media_nacional <- ", d$xbarra, "\n", "desvi
 "    N = poblacion_nacional,\n",
 "    M = upm_marco_nacional,\n",
 "    rho = rho_nacional,\n",
-"    p = proporcion_nacional,\n",
+if (identical(d$unidad, "Personas")) "    r = r_nacional,\n    b = b_nacional,\n" else "",
+"    P = proporcion_nacional,\n",
 "    delta = delta_nacional,\n",
 "    conf = nivel_confianza,\n",
 "    m = m_nacional_seleccionado\n",
@@ -345,6 +393,7 @@ if (d$tipo_param == "Media") paste0("media_dam <- c(", parametro_dam_txt, ")\n",
 "        N = poblacion_dam[i],\n",
 "        M = upm_marco_dam[i],\n",
 "        rho = rho_dam[i],\n",
+if (identical(d$unidad_dam, "Personas")) "        r = r_dam[i],\n        b = b_dam[i],\n" else "",
 "        mu = media_dam[i],\n",
 "        sigma = desviacion_estandar_dam[i],\n",
 "        delta = delta_dam[i],\n",
@@ -356,7 +405,8 @@ if (d$tipo_param == "Media") paste0("media_dam <- c(", parametro_dam_txt, ")\n",
 "        N = poblacion_dam[i],\n",
 "        M = upm_marco_dam[i],\n",
 "        rho = rho_dam[i],\n",
-"        p = proporcion_dam[i],\n",
+if (identical(d$unidad_dam, "Personas")) "        r = r_dam[i],\n        b = b_dam[i],\n" else "",
+"        P = proporcion_dam[i],\n",
 "        delta = delta_dam[i],\n",
 "        conf = nivel_confianza,\n",
 "        m = m_dam_seleccionado[i]\n",
