@@ -169,13 +169,14 @@ mod_resultados_server <- function(id, entrada_base) {
         req(nrow(tabla_detalle) > 0)
         data.frame(
           DAM = paste0("DAM ", tabla_detalle$DAM),
-          m_seleccionado = tabla_detalle$HouseholdsPerPSU,
-          tamano_muestra = tabla_detalle$HouseholdsInSample,
-          UPM = tabla_detalle$PSUinSample,
+          HouseholdsPerPSU = tabla_detalle$HouseholdsPerPSU,
+          DEFF = tabla_detalle$DEFF,
+          PSUinSample = tabla_detalle$PSUinSample,
+          HouseholdsInSample = tabla_detalle$HouseholdsInSample,
           stringsAsFactors = FALSE
         )
       } else {
-        n_base <- if (d$tipo_param == "Media") {
+        base_res <- if (d$tipo_param == "Media") {
           if (identical(d$unidad, "Personas")) {
             ss4HHSm(
               N = d$N,
@@ -228,10 +229,11 @@ mod_resultados_server <- function(id, entrada_base) {
         }
 
         data.frame(
-          DAM = "Nacional",
-          m_seleccionado = d$m_seleccionado_nacional,
-          tamano_muestra = as.numeric(n_base),
-          UPM = ceiling(as.numeric(n_base) / d$m_seleccionado_nacional),
+          Nivel = "Nacional",
+          HouseholdsPerPSU = base_res$HouseholdsPerPSU[1],
+          DEFF = base_res$DEFF[1],
+          PSUinSample = base_res$PSUinSample[1],
+          HouseholdsInSample = base_res$HouseholdsInSample[1],
           stringsAsFactors = FALSE
         )
       }
@@ -250,11 +252,11 @@ mod_resultados_server <- function(id, entrada_base) {
         if (identical(input$tipo_ingreso_ipfp, "totales")) {
           prop_fila <- prop_fila / sum(prop_fila)
         }
-        asignacion <- ipfp_aproximada(matrix(prop_fila, nrow = 1), tabla_base$tamano_muestra[1])
+        asignacion <- ipfp_aproximada(matrix(prop_fila, nrow = 1), tabla_base$HouseholdsInSample[1])
 
         return(data.frame(
           Nivel = "Nacional",
-          tamano_muestra = tabla_base$tamano_muestra[1],
+          HouseholdsInSample = tabla_base$HouseholdsInSample[1],
           distribucion_urbano = as.numeric(asignacion[1, 1]),
           distribucion_rural = as.numeric(asignacion[1, 2]),
           stringsAsFactors = FALSE
@@ -267,10 +269,10 @@ mod_resultados_server <- function(id, entrada_base) {
         if (identical(input$tipo_ingreso_ipfp, "totales")) {
           prop_fila <- prop_fila / sum(prop_fila)
         }
-        asignacion <- ipfp_aproximada(matrix(prop_fila, nrow = 1), tabla_base$tamano_muestra[i])
+        asignacion <- ipfp_aproximada(matrix(prop_fila, nrow = 1), tabla_base$HouseholdsInSample[i])
         data.frame(
           DAM = tabla_base$DAM[i],
-          tamano_muestra = tabla_base$tamano_muestra[i],
+          HouseholdsInSample = tabla_base$HouseholdsInSample[i],
           distribucion_urbano = as.numeric(asignacion[1, 1]),
           distribucion_rural = as.numeric(asignacion[1, 2]),
           stringsAsFactors = FALSE
@@ -282,8 +284,8 @@ mod_resultados_server <- function(id, entrada_base) {
       d <- entrada_base(); req(d)
       if (!isTRUE(d$usa_dominios) && !identical(input$usa_area, "si")) return("Solo nivel nacional")
       if (isTRUE(d$usa_dominios) && !identical(input$usa_area, "si")) return("Nivel DAM")
-      if (!isTRUE(d$usa_dominios) && identical(input$usa_area, "si")) return("Nivel nacional + área urbano/rural")
-      "Nivel DAM + área urbano/rural"
+      if (!isTRUE(d$usa_dominios) && identical(input$usa_area, "si")) return("Nacional + área urbano-rural")
+      "DAM + área urbano-rural"
     })
 
     tabla_salida_final <- reactive({
@@ -292,15 +294,6 @@ mod_resultados_server <- function(id, entrada_base) {
 
       if (!identical(input$usa_area, "si")) {
         base <- tabla_base_final()
-        if (!isTRUE(d$usa_dominios)) {
-          return(data.frame(
-            Nivel = "Nacional",
-            m_seleccionado = base$m_seleccionado,
-            tamano_muestra = base$tamano_muestra,
-            UPM = base$UPM,
-            stringsAsFactors = FALSE
-          ))
-        }
         return(base)
       }
 
@@ -345,10 +338,10 @@ mod_resultados_server <- function(id, entrada_base) {
       tabla_base <- tabla_base_final()
       tabla_final <- tabla_salida_final()
 
-      n_hogares_total <- sum(tabla_base$tamano_muestra)
-      upm_total <- sum(tabla_base$UPM)
+      n_hogares_total <- sum(tabla_base$HouseholdsInSample)
+      upm_total <- sum(tabla_base$PSUinSample)
       n_encuestas <- if (isTRUE(d$usa_dominios)) {
-        ceiling(sum(tabla_base$tamano_muestra * d$r_dam * d$b_dam))
+        ceiling(sum(tabla_base$HouseholdsInSample * d$r_dam * d$b_dam))
       } else {
         ceiling(n_hogares_total * d$r * d$b)
       }
@@ -378,116 +371,86 @@ mod_resultados_server <- function(id, entrada_base) {
       usa_dominios <- isTRUE(d$usa_dominios)
       tipo_ingreso_ipfp <- if (!is.null(input$tipo_ingreso_ipfp)) input$tipo_ingreso_ipfp else "proporciones"
 
-      tabla_ipfp_txt <- if (usa_area) paste(capture.output(dput(ipfp_df())), collapse = "\n") else "NULL"
-      tabla_dam_txt <- if (usa_dominios) paste(capture.output(dput(d$tabla_m_seleccionado_dam)), collapse = "\n") else "NULL"
-
-      paste0(
-"# =========================================================\n",
-"# Script reproducible exportado desde la app\n",
-"# Módulo 7 - cuatro escenarios de asignación final\n",
-"# =========================================================\n\n",
+      base_script <- paste0(
+"# Script reproducible - módulo 7\n",
 "source('modulos/mod_utils.R')\n\n",
-"# -------------------- Entradas guardadas -----------------\n",
 "tipo_param <- '", d$tipo_param, "'\n",
 "unidad <- '", d$unidad, "'\n",
-"N <- ", d$N, "\n",
-"M <- ", d$M, "\n",
-"rho <- ", d$rho, "\n",
-"delta <- ", d$delta, "\n",
-"conf <- ", d$conf, "\n",
-"xbarra <- ", d$xbarra, "\n",
-"s <- ", d$s, "\n",
-"p <- ", d$p, "\n",
-"r <- ", d$r, "\n",
-"b <- ", d$b, "\n",
-"usa_dominios <- ", tolower(as.character(usa_dominios)), "\n",
-"usa_area <- ", tolower(as.character(usa_area)), "\n",
-"tipo_ingreso_ipfp <- '", tipo_ingreso_ipfp, "'\n",
-"m_nacional <- ", d$m_seleccionado_nacional, "\n",
-"tabla_dam_seleccionada <- ", tabla_dam_txt, "\n",
-"tabla_ipfp_ingresada <- ", tabla_ipfp_txt, "\n\n",
-"# -------------------- Funciones auxiliares ----------------\n",
-"calcular_base_nacional <- function() {\n",
-"  if (tipo_param == 'Media') {\n",
-"    n_base <- if (unidad == 'Personas') {\n",
-"      ss4HHSm(N = N, M = M, rho = rho, r = r, b = b, mu = xbarra, sigma = s, delta = delta, conf = conf, m = m_nacional)\n",
-"    } else {\n",
-"      ss4HHSm(N = N, M = M, rho = rho, mu = xbarra, sigma = s, delta = delta, conf = conf, m = m_nacional)\n",
-"    }\n",
-"  } else {\n",
-"    n_base <- if (unidad == 'Personas') {\n",
-"      ss4HHSp(N = N, M = M, rho = rho, r = r, b = b, P = p, delta = delta, conf = conf, m = m_nacional)\n",
-"    } else {\n",
-"      ss4HHSp(N = N, M = M, rho = rho, P = p, delta = delta, conf = conf, m = m_nacional)\n",
-"    }\n",
-"  }\n",
-"  data.frame(\n",
-"    DAM = 'Nacional',\n",
-"    m_seleccionado = m_nacional,\n",
-"    tamano_muestra = as.numeric(n_base),\n",
-"    UPM = ceiling(as.numeric(n_base) / m_nacional)\n",
-"  )\n",
-"}\n\n",
-"normalizar_fila <- function(urbano, rural, tipo_ingreso) {\n",
-"  fila <- c(urbano, rural)\n",
-"  if (tipo_ingreso == 'totales') fila <- fila / sum(fila)\n",
-"  fila\n",
-"}\n\n",
-"# -------------------- Tabla base --------------------------\n",
-"tabla_base <- if (isTRUE(usa_dominios)) {\n",
-"  data.frame(\n",
-"    DAM = paste0('DAM ', tabla_dam_seleccionada$DAM),\n",
-"    m_seleccionado = tabla_dam_seleccionada$HouseholdsPerPSU,\n",
-"    tamano_muestra = tabla_dam_seleccionada$HouseholdsInSample,\n",
-"    UPM = tabla_dam_seleccionada$PSUinSample\n",
-"  )\n",
-"} else {\n",
-"  calcular_base_nacional()\n",
-"}\n\n",
-"# -------------------- Cuatro escenarios -------------------\n",
-"if (!isTRUE(usa_dominios) && !isTRUE(usa_area)) {\n",
-"  # Caso 1: nacional sin área\n",
-"  tabla_final <- data.frame(\n",
-"    Nivel = 'Nacional',\n",
-"    m_seleccionado = tabla_base$m_seleccionado,\n",
-"    tamano_muestra = tabla_base$tamano_muestra,\n",
-"    UPM = tabla_base$UPM\n",
-"  )\n",
-"} else if (isTRUE(usa_dominios) && !isTRUE(usa_area)) {\n",
-"  # Caso 2: DAM sin área\n",
-"  tabla_final <- tabla_base\n",
-"} else if (!isTRUE(usa_dominios) && isTRUE(usa_area)) {\n",
-"  # Caso 3: nacional + área\n",
-"  prop_fila <- normalizar_fila(\n",
-"    tabla_ipfp_ingresada$urbano[1],\n",
-"    tabla_ipfp_ingresada$rural[1],\n",
-"    tipo_ingreso_ipfp\n",
-"  )\n",
-"  asig <- ipfp_aproximada(matrix(prop_fila, nrow = 1), tabla_base$tamano_muestra[1])\n",
-"  tabla_final <- data.frame(\n",
-"    Nivel = 'Nacional',\n",
-"    tamano_muestra = tabla_base$tamano_muestra[1],\n",
-"    distribucion_urbano = as.numeric(asig[1, 1]),\n",
-"    distribucion_rural = as.numeric(asig[1, 2])\n",
-"  )\n",
-"} else {\n",
-"  # Caso 4: DAM + área\n",
-"  tabla_final <- do.call(rbind, lapply(seq_len(nrow(tabla_base)), function(i) {\n",
-"    prop_fila <- normalizar_fila(\n",
-"      tabla_ipfp_ingresada$urbano[i],\n",
-"      tabla_ipfp_ingresada$rural[i],\n",
-"      tipo_ingreso_ipfp\n",
-"    )\n",
-"    asig <- ipfp_aproximada(matrix(prop_fila, nrow = 1), tabla_base$tamano_muestra[i])\n",
-"    data.frame(\n",
-"      DAM = tabla_base$DAM[i],\n",
-"      tamano_muestra = tabla_base$tamano_muestra[i],\n",
-"      distribucion_urbano = as.numeric(asig[1, 1]),\n",
-"      distribucion_rural = as.numeric(asig[1, 2])\n",
-"    )\n",
-"  }))\n",
-"}\n\n",
-"print(tabla_final)\n"
+"N <- ", d$N, "; M <- ", d$M, "; rho <- ", d$rho, "\n",
+"delta <- ", d$delta, "; conf <- ", d$conf, "\n",
+"xbarra <- ", d$xbarra, "; s <- ", d$s, "; p <- ", d$p, "\n",
+"r <- ", d$r, "; b <- ", d$b, "\n\n"
+      )
+
+      if (!usa_dominios && !usa_area) {
+        return(paste0(
+          base_script,
+          "# Caso 1: Solo nivel nacional\n",
+          "m_nacional <- ", d$m_seleccionado_nacional, "\n",
+          "resultado_nacional <- if (tipo_param == 'Media') {\n",
+          "  if (unidad == 'Personas') ss4HHSm(N=N,M=M,rho=rho,r=r,b=b,mu=xbarra,sigma=s,delta=delta,conf=conf,m=m_nacional)\n",
+          "  else ss4HHSm(N=N,M=M,rho=rho,mu=xbarra,sigma=s,delta=delta,conf=conf,m=m_nacional)\n",
+          "} else {\n",
+          "  if (unidad == 'Personas') ss4HHSp(N=N,M=M,rho=rho,r=r,b=b,P=p,delta=delta,conf=conf,m=m_nacional)\n",
+          "  else ss4HHSp(N=N,M=M,rho=rho,P=p,delta=delta,conf=conf,m=m_nacional)\n",
+          "}\n",
+          "tabla_final <- data.frame(\n",
+          "  Nivel = 'Nacional',\n",
+          "  HouseholdsPerPSU = resultado_nacional$HouseholdsPerPSU[1],\n",
+          "  DEFF = resultado_nacional$DEFF[1],\n",
+          "  PSUinSample = resultado_nacional$PSUinSample[1],\n",
+          "  HouseholdsInSample = resultado_nacional$HouseholdsInSample[1]\n",
+          ")\n\nprint(tabla_final)\n"
+        ))
+      }
+
+      if (usa_dominios && !usa_area) {
+        tabla_dam_txt <- paste(capture.output(dput(tabla_base_final())), collapse = "\n")
+        return(paste0(
+          base_script,
+          "# Caso 2: Nivel DAM\n",
+          "tabla_final <- ", tabla_dam_txt, "\n\n",
+          "print(tabla_final)\n"
+        ))
+      }
+
+      if (!usa_dominios && usa_area) {
+        tabla_ipfp_txt <- paste(capture.output(dput(ipfp_df())), collapse = "\n")
+        return(paste0(
+          base_script,
+          "# Caso 3: Nacional + área urbano-rural\n",
+          "resultado_nacional <- ", paste(capture.output(dput(tabla_base_final())), collapse = "\n"), "\n",
+          "ipfp <- ", tabla_ipfp_txt, "\n",
+          "prop <- c(ipfp$urbano[1], ipfp$rural[1])\n",
+          if (identical(tipo_ingreso_ipfp, "totales")) "prop <- prop / sum(prop)\n" else "",
+          "asig <- ipfp_aproximada(matrix(prop, nrow=1), resultado_nacional$HouseholdsInSample[1])\n",
+          "tabla_final <- data.frame(\n",
+          "  Nivel='Nacional',\n",
+          "  HouseholdsInSample=resultado_nacional$HouseholdsInSample[1],\n",
+          "  distribucion_urbano=as.numeric(asig[1,1]),\n",
+          "  distribucion_rural=as.numeric(asig[1,2])\n",
+          ")\n\nprint(tabla_final)\n"
+        ))
+      }
+
+      tabla_ipfp_txt <- paste(capture.output(dput(ipfp_df())), collapse = "\n")
+      tabla_dam_txt <- paste(capture.output(dput(tabla_base_final())), collapse = "\n")
+      paste0(
+        base_script,
+        "# Caso 4: DAM + área urbano-rural\n",
+        "tabla_dam <- ", tabla_dam_txt, "\n",
+        "ipfp <- ", tabla_ipfp_txt, "\n",
+        "tabla_final <- do.call(rbind, lapply(seq_len(nrow(tabla_dam)), function(i){\n",
+        "  prop <- c(ipfp$urbano[i], ipfp$rural[i])\n",
+        if (identical(tipo_ingreso_ipfp, "totales")) "  prop <- prop / sum(prop)\n" else "",
+        "  asig <- ipfp_aproximada(matrix(prop, nrow=1), tabla_dam$HouseholdsInSample[i])\n",
+        "  data.frame(\n",
+        "    DAM = tabla_dam$DAM[i],\n",
+        "    HouseholdsInSample = tabla_dam$HouseholdsInSample[i],\n",
+        "    distribucion_urbano = as.numeric(asig[1,1]),\n",
+        "    distribucion_rural = as.numeric(asig[1,2])\n",
+        "  )\n",
+        "}))\n\nprint(tabla_final)\n"
       )
     })
 
