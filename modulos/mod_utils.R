@@ -2,20 +2,17 @@
 # Utilidades de cálculo de muestra
 # =========================================================
 
-ss4HHSm <- function (N, M, rho, mu, sigma, delta, conf, m, r = 1, b = 1)
+ss4HHSm <- function (N, M, rho, mu, sigma, delta, conf, m)
 {
-  bar.n <- Deff <- n <- Mi <- M <- rep(NA, times = length(m))
+  Deff <- n <- M <- rep(NA, times = length(m))
   for (k in 1:length(m)) {
-    bar.n[k] <- m[k] * r * b
-    Deff[k] <- 1 + (bar.n[k] - 1) * rho
+    Deff[k] <- 1 + (m[k] - 1) * rho
     n[k] <- ss4m(N, mu, sigma, DEFF = Deff[k], conf = 0.95,
                  error = "rme", delta = delta)
-    Mi[k] <- n[k]/(r * b)
-    M[k] <- n[k]/bar.n[k]
+    M[k] <- n[k]/m[k]
   }
-  result <- data.frame(HouseholdsPerPSU = round(m), PersonsPerPSU = round(bar.n),
-                       DEFF = round(Deff, 2), PSUinSample = round(M), HouseholdsInSample = round(Mi),
-                       PersonsInSample = round(n))
+  result <- data.frame(HouseholdsPerPSU = round(m), DEFF = round(Deff,1),
+                       PSUinSample = round(M), HouseholdsInSample = round(n))
   return(result)
 }
 
