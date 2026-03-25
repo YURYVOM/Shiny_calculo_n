@@ -48,6 +48,10 @@ mod_asignacion_ui <- function(id) {
       DT::DTOutput(ns("tabla_dam")),
       conditionalPanel(
         condition = sprintf("input['%s'] == 'si'", ns("usa_dominios")),
+        downloadButton(ns("descargar_tabla_dam"), "Descargar tabla DAM (CSV)", class = "btn btn-primary")
+      ),
+      conditionalPanel(
+        condition = sprintf("input['%s'] == 'si'", ns("usa_dominios")),
         h4("Selección final del parámetro m para todos los DAM"),
         p("Después de revisar los resultados, seleccione un único valor de m que se aplicará a todos los DAM."),
         uiOutput(ns("selector_m_dam_ui"))
@@ -203,49 +207,55 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
       req(!is.null(n), n >= 2)
 
       filas <- lapply(seq_len(n), function(i) {
-        fluidRow(
-          column(
-            3,
-            numericInput(
-              session$ns(paste0("parametro_objetivo_dam_", i)),
-              if (p$tipo == "Media") sprintf("DAM %s: media esperada", i) else sprintf("DAM %s: proporción esperada", i),
-              value = NA,
-              min = if (p$tipo == "Proporción") 0 else NA,
-              max = if (p$tipo == "Proporción") 1 else NA
-            )
-          ),
-          column(
-            3,
-            if (p$tipo == "Media") {
+        tags$div(
+          style = "border: 1px solid #d9dee8; border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; background-color: #f8fafc;",
+          tags$h4(sprintf("DAM %s", i), style = "margin-top: 0; margin-bottom: 10px; font-size: 20px;"),
+          fluidRow(
+            column(
+              4,
               numericInput(
-                session$ns(paste0("desviacion_estandar_dam_", i)),
-                sprintf("DAM %s: desviación estándar", i),
+                session$ns(paste0("parametro_objetivo_dam_", i)),
+                if (p$tipo == "Media") "Media esperada" else "Proporción esperada",
                 value = NA,
-                min = 0
+                min = if (p$tipo == "Proporción") 0 else NA,
+                max = if (p$tipo == "Proporción") 1 else NA
               )
-            } else {
-              tags$div()
-            }
+            ),
+            column(
+              4,
+              if (p$tipo == "Media") {
+                numericInput(
+                  session$ns(paste0("desviacion_estandar_dam_", i)),
+                  "Desviación estándar",
+                  value = NA,
+                  min = 0
+                )
+              } else {
+                tags$div()
+              }
+            ),
+            column(4, numericInput(session$ns(paste0("poblacion_dam_", i)), "Población (N)", value = NA, min = 1))
           ),
-          column(2, numericInput(session$ns(paste0("poblacion_dam_", i)), sprintf("DAM %s: población (N)", i), value = NA, min = 1)),
-          column(2, numericInput(session$ns(paste0("upm_marco_dam_", i)), sprintf("DAM %s: UPM en marco (M)", i), value = NA, min = 1)),
-          column(2, numericInput(session$ns(paste0("amplitud_dam_", i)), sprintf("DAM %s: amplitud", i), value = NA, min = 0, step = 0.001)),
-          column(2, numericInput(session$ns(paste0("rho_dam_", i)), sprintf("DAM %s: rho", i), value = NA, min = 0, max = 1, step = 0.01)),
-          column(
-            1,
-            if (identical(input$unidad_dam, "Personas")) {
-              numericInput(session$ns(paste0("r_dam_", i)), sprintf("DAM %s: r", i), value = NA, min = 0, step = 0.01)
-            } else {
-              tags$div()
-            }
-          ),
-          column(
-            1,
-            if (identical(input$unidad_dam, "Personas")) {
-              numericInput(session$ns(paste0("b_dam_", i)), sprintf("DAM %s: b", i), value = NA, min = 0, step = 0.01)
-            } else {
-              tags$div()
-            }
+          fluidRow(
+            column(3, numericInput(session$ns(paste0("upm_marco_dam_", i)), "UPM en marco (M)", value = NA, min = 1)),
+            column(3, numericInput(session$ns(paste0("amplitud_dam_", i)), "Amplitud", value = NA, min = 0, step = 0.001)),
+            column(3, numericInput(session$ns(paste0("rho_dam_", i)), "Rho", value = NA, min = 0, max = 1, step = 0.01)),
+            column(
+              1,
+              if (identical(input$unidad_dam, "Personas")) {
+                numericInput(session$ns(paste0("r_dam_", i)), "r", value = NA, min = 0, step = 0.01)
+              } else {
+                tags$div()
+              }
+            ),
+            column(
+              2,
+              if (identical(input$unidad_dam, "Personas")) {
+                numericInput(session$ns(paste0("b_dam_", i)), "b", value = NA, min = 0, step = 0.01)
+              } else {
+                tags$div()
+              }
+            )
           )
         )
       })
@@ -544,6 +554,17 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
 
       cat("Continúe al siguiente módulo para los resultados finales y la asignación IPFP.\n")
     })
+
+    output$descargar_tabla_dam <- downloadHandler(
+      filename = function() paste0("tabla_resultados_dam_", Sys.Date(), ".csv"),
+      content = function(file) {
+        tabla <- tabla_dam_completa()
+        if (nrow(tabla) == 0) {
+          tabla <- data.frame(Nota = "No se solicitó representatividad por DAM.")
+        }
+        utils::write.csv(tabla, file, row.names = FALSE, fileEncoding = "UTF-8")
+      }
+    )
 
     list(
       validacion = validacion,
