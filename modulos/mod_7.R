@@ -36,10 +36,7 @@ mod_resultados_ui <- function(id) {
       br(),
       h4("Código R reproducible"),
       tags$pre(style = "max-height: 260px; overflow-y: auto;", textOutput(ns("codigo_r"))),
-      fluidRow(
-        column(6, downloadButton(ns("descargar_codigo"), "Descargar código R completo", class = "btn btn-success")),
-        column(6, uiOutput(ns("ui_descarga_dam")))
-      )
+      downloadButton(ns("descargar_codigo"), "Descargar código R completo", class = "btn btn-success")
     )
   )
 }
@@ -456,21 +453,12 @@ mod_resultados_server <- function(id, entrada_base) {
 
     output$codigo_r <- renderText(codigo_r())
 
-    output$ui_descarga_dam <- renderUI({
-      d <- entrada_base(); req(d)
-      if (!isTRUE(d$usa_dominios)) return(NULL)
-      downloadButton(session$ns("descargar_codigo_dam"), "Descargar script cálculo DAM", class = "btn btn-primary")
-    })
-
     output$descargar_codigo <- downloadHandler(
       filename = function() paste0("calculo_muestra_completo_", Sys.Date(), ".R"),
       content = function(file) writeLines(codigo_r(), file)
     )
 
-    output$descargar_codigo_dam <- downloadHandler(
-      filename = function() paste0("calculo_muestra_dam_", Sys.Date(), ".R"),
-      content = function(file) writeLines(codigo_r(), file)
-    )
+
 
     list(
       validacion = validacion,
