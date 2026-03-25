@@ -216,6 +216,8 @@ mod_resultados_server <- function(id, entrada_base) {
             ss4HHSp(
               N = d$N,
               M = d$M,
+              r = 1,
+              b = 1,
               rho = d$rho,
               P = d$p,
               delta = d$delta,
@@ -389,7 +391,7 @@ mod_resultados_server <- function(id, entrada_base) {
           "  else ss4HHSm(N=N,M=M,rho=rho,mu=xbarra,sigma=s,delta=delta,conf=conf,m=m_nacional)\n",
           "} else {\n",
           "  if (unidad == 'Personas') ss4HHSp(N=N,M=M,rho=rho,r=r,b=b,P=p,delta=delta,conf=conf,m=m_nacional)\n",
-          "  else ss4HHSp(N=N,M=M,rho=rho,P=p,delta=delta,conf=conf,m=m_nacional)\n",
+          "  else ss4HHSp(N=N,M=M,rho=rho,r=1,b=1,P=p,delta=delta,conf=conf,m=m_nacional)\n",
           "}\n",
           "tabla_final <- data.frame(\n",
           "  Nivel = 'Nacional',\n",

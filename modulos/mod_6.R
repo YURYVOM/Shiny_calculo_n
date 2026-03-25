@@ -137,6 +137,8 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
           ss4HHSp(
             N = d$N,
             M = d$M,
+            r = 1,
+            b = 1,
             rho = d$rho,
             P = p$p,
             delta = pr$delta,
@@ -361,6 +363,8 @@ mod_asignacion_server <- function(id, parametro, precision, unidad, diseno) {
               ss4HHSp(
                 N = v$poblacion_dam[j],
                 M = v$upm_marco_dam[j],
+                r = 1,
+                b = 1,
                 rho = v$rho_dam[j],
                 P = v$parametro_objetivo_dam[j],
                 delta = v$delta_dam[j],
